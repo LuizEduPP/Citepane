@@ -401,21 +401,6 @@ main {
   animation: fade-up 0.22s ease;
 }
 
-.job-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.eyebrow {
-  margin: 0;
-  color: var(--pane);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: none;
-}
-
 .panel-section {
   display: flex;
   flex-direction: column;
@@ -424,7 +409,7 @@ main {
 
 .section-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-height: 1.1em;
@@ -439,33 +424,96 @@ main {
   letter-spacing: 0.08em;
 }
 
-.section-head #copy-btn {
+.result-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.result-head-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.result-head #action-label {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-transform: none;
+  color: var(--text-strong);
+}
+
+.result-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-shrink: 0;
 }
 
-.status-row {
-  display: flex;
+.tool-btn {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  border: 1px solid color-mix(in srgb, var(--pane) 18%, transparent);
+  color: var(--pane);
+  box-shadow: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tool-btn:hover {
+  filter: none;
+  background: var(--accent-soft-hover);
+  color: var(--pane);
+}
+
+.cancel-btn.is-busy {
+  background: transparent;
+  color: var(--pane);
+}
+
+.cancel-ring {
+  position: absolute;
+  inset: 1px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--pane) 25%, transparent);
+  border-top-color: var(--pane);
+  animation: spin 0.7s linear infinite;
+}
+
+.cancel-square {
+  position: relative;
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--pane);
+}
+
+.copy-btn.is-copied {
+  background: var(--accent-grad);
+  color: var(--button-text);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   min-width: 0;
   color: var(--pane);
-}
-
-.status-row #cancel-btn {
-  flex-shrink: 0;
-  background: var(--bg-elev);
-  border: 1px solid var(--line);
 }
 
 .muted {
@@ -1009,6 +1057,7 @@ select:focus,
 .action-tab:focus-visible,
 .action-item:focus-visible,
 .icon-btn:focus-visible,
+.tool-btn:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;
@@ -1029,8 +1078,13 @@ select:focus {
   .action-tab,
   .action-item,
   .icon-btn,
-  .media-card {
+  .media-card,
+  .cancel-ring {
     animation: none;
     transition: none;
+  }
+
+  .cancel-ring {
+    border-color: var(--pane);
   }
 }

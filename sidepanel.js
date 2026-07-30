@@ -31,7 +31,6 @@ const els = {
   sources: document.getElementById('sources'),
   resultWrap: document.getElementById('result-wrap'),
   status: document.getElementById('status'),
-  statusRow: document.getElementById('status-row'),
   cancelBtn: document.getElementById('cancel-btn'),
   result: document.getElementById('result'),
   error: document.getElementById('error'),
@@ -121,23 +120,34 @@ function setActionLabel(text) {
   const label = typeof text === 'string' ? text.trim() : '';
   els.actionLabel.textContent = label;
   els.actionLabel.hidden = !label;
+  syncResultSection();
 }
 
 function setStatus(text) {
   const status = typeof text === 'string' ? text.trim() : '';
   els.status.textContent = status;
-  syncStatusRow();
+  els.status.hidden = !status;
+  syncResultSection();
 }
 
 function setCancelAvailable(available) {
   els.cancelBtn.hidden = !available;
-  syncStatusRow();
+  els.cancelBtn.classList.toggle('is-busy', Boolean(available));
+  syncResultSection();
 }
 
-function syncStatusRow() {
-  const hasStatus = Boolean(els.status.textContent);
+function setCopyAvailable(available) {
+  els.copyBtn.hidden = !(available && latestResultText);
+  syncResultSection();
+}
+
+function syncResultSection() {
+  const hasGallery = Boolean(els.result.querySelector('.media-gallery'));
+  const hasResult = Boolean(latestResultText) || hasGallery;
+  const hasError = !els.error.hidden && Boolean(els.error.textContent);
+  const hasAction = Boolean(els.actionLabel.textContent);
   const canCancel = !els.cancelBtn.hidden;
-  els.statusRow.hidden = !(hasStatus || canCancel);
+  els.resultWrap.hidden = !(hasResult || hasError || hasAction || canCancel);
 }
 
 function markLocalCancelled(createdAt) {
@@ -253,17 +263,6 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
     return;
   }
   stopCurrentWork({ removeKeys: [STORAGE_LAST_RESULT_KEY] });
-}
-
-function setCopyAvailable(available) {
-  els.copyBtn.hidden = !(available && latestResultText);
-}
-
-function syncResultSection() {
-  const hasGallery = Boolean(els.result.querySelector('.media-gallery'));
-  const hasResult = Boolean(latestResultText) || hasGallery;
-  const hasError = !els.error.hidden && Boolean(els.error.textContent);
-  els.resultWrap.hidden = !(hasResult || hasError);
 }
 
 function isMediaTooltipAction(action) {
@@ -1135,10 +1134,11 @@ els.copyBtn.addEventListener('click', async () => {
     return;
   }
   await navigator.clipboard.writeText(latestResultText);
-  const previous = els.copyBtn.textContent;
-  els.copyBtn.textContent = uiMessage('uiCopied');
+  els.copyBtn.classList.add('is-copied');
+  els.copyBtn.setAttribute('aria-label', uiMessage('uiCopied'));
   setTimeout(() => {
-    els.copyBtn.textContent = previous;
+    els.copyBtn.classList.remove('is-copied');
+    els.copyBtn.setAttribute('aria-label', uiMessage('uiCopy'));
   }, 1200);
 });
 
@@ -1328,21 +1328,8 @@ function applyLiveSelection(text) {
     return;
   }
 
+  // Click-away / empty selection: keep the last real selection until a new one arrives.
   if (!trimmed) {
-    lastLiveSelection = '';
-    setSelectionVisible('');
-    setActionsVisible(false);
-
-    // Keep a finished answer visible when the user just changes tabs.
-    if (latestResultText) {
-      els.idle.hidden = true;
-      els.job.hidden = false;
-      return;
-    }
-
-    setActionLabel('');
-    els.job.hidden = true;
-    els.idle.hidden = false;
     return;
   }
 

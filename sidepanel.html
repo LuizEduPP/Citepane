@@ -109,23 +109,6 @@
       </div>
 
       <section id="job" class="job" hidden>
-        <header class="job-head">
-          <p id="action-label" class="eyebrow" hidden></p>
-          <div id="status-row" class="status-row" hidden>
-            <p id="status" class="status muted"></p>
-            <button type="button" id="cancel-btn" class="ghost compact" data-i18n="uiCancel" hidden>
-              Cancel
-            </button>
-          </div>
-        </header>
-
-        <section id="selection-wrap" class="panel-section selection-section" hidden>
-          <div class="section-head">
-            <h2 data-i18n="uiSelection">Selection</h2>
-          </div>
-          <pre id="selection" class="selection-box"></pre>
-        </section>
-
         <section id="actions-wrap" class="panel-section actions-section" hidden>
           <div class="section-head">
             <h2 data-i18n="uiActions">Actions</h2>
@@ -134,12 +117,47 @@
           <div id="actions" class="action-panel" hidden></div>
         </section>
 
-        <section id="result-wrap" class="panel-section result-section" hidden>
+        <section id="selection-wrap" class="panel-section selection-section" hidden>
           <div class="section-head">
-            <h2 data-i18n="uiResult">Result</h2>
-            <button type="button" id="copy-btn" class="ghost compact" data-i18n="uiCopy" hidden>
-              Copy
-            </button>
+            <h2 data-i18n="uiSelection">Selection</h2>
+          </div>
+          <pre id="selection" class="selection-box"></pre>
+        </section>
+
+        <section id="result-wrap" class="panel-section result-section" hidden>
+          <div class="section-head result-head">
+            <div class="result-head-text">
+              <h2 id="action-label" hidden></h2>
+              <p id="status" class="status muted" hidden></p>
+            </div>
+            <div class="result-tools">
+              <button
+                type="button"
+                id="cancel-btn"
+                class="tool-btn cancel-btn"
+                data-i18n-aria="uiCancel"
+                aria-label="Cancel"
+                hidden
+              >
+                <span class="cancel-ring" aria-hidden="true"></span>
+                <span class="cancel-square" aria-hidden="true"></span>
+              </button>
+              <button
+                type="button"
+                id="copy-btn"
+                class="tool-btn copy-btn"
+                data-i18n-aria="uiCopy"
+                aria-label="Copy"
+                hidden
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+                  <path
+                    fill="currentColor"
+                    d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                  />
+                </svg>
+              </button>
+            </div>
           </div>
           <div id="result" class="result-box markdown-body"></div>
           <p id="error" class="error" hidden></p>
