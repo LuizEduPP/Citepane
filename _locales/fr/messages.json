@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "IA sur texte sélectionné avec réponses sourcées dans le panneau latéral."
+    "message": "Sélectionnez du texte, lancez des actions IA et obtenez des réponses sourcées dans le panneau—votre modèle, votre endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -64,6 +64,9 @@
   },
   "uiSettings": {
     "message": "Paramètres"
+  },
+  "uiGithubProfile": {
+    "message": "Profil GitHub"
   },
   "uiBaseUrl": {
     "message": "URL de base"

@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "KI für markierten Text mit belegten Antworten im Seitenpanel."
+    "message": "Text markieren, KI-Aktionen starten, belegte Antworten im Seitenpanel—dein Modell, dein Endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -64,6 +64,9 @@
   },
   "uiSettings": {
     "message": "Einstellungen"
+  },
+  "uiGithubProfile": {
+    "message": "GitHub-Profil"
   },
   "uiBaseUrl": {
     "message": "Basis-URL"

@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Selected text AI with grounded answers in the side panel."
+    "message": "Select text, run AI actions, get grounded answers in the side panel—your model, your endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -64,6 +64,9 @@
   },
   "uiSettings": {
     "message": "Settings"
+  },
+  "uiGithubProfile": {
+    "message": "GitHub profile"
   },
   "uiBaseUrl": {
     "message": "Base URL"

@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "IA no texto selecionado com respostas fundamentadas no painel lateral."
+    "message": "Selecione texto, execute ações de IA e veja respostas fundamentadas no painel—o seu modelo, o seu endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -64,6 +64,9 @@
   },
   "uiSettings": {
     "message": "Definições"
+  },
+  "uiGithubProfile": {
+    "message": "Perfil no GitHub"
   },
   "uiBaseUrl": {
     "message": "URL base"

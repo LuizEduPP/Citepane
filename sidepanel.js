@@ -37,6 +37,7 @@ const els = {
   error: document.getElementById('error'),
   copyBtn: document.getElementById('copy-btn'),
   settingsBtn: document.getElementById('settings-btn'),
+  githubLink: document.getElementById('github-link'),
   settingsOverlay: document.getElementById('settings-overlay'),
   settingsBackdrop: document.getElementById('settings-backdrop'),
   settingsClose: document.getElementById('settings-close'),
@@ -67,6 +68,34 @@ function uiMessage(key) {
     throw new Error(`Missing UI string: ${key}`);
   }
   return fallback;
+}
+
+function setupGithubIcon() {
+  const path = els.githubLink?.querySelector('.github-path');
+  if (!path) {
+    return;
+  }
+
+  const len = Math.ceil(path.getTotalLength());
+  path.style.setProperty('--github-len', String(len));
+
+  const play = () => {
+    path.classList.remove('is-drawing');
+    // Force restart so hover can replay the stroke draw.
+    void path.getBoundingClientRect();
+    path.classList.add('is-drawing');
+  };
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    path.style.fillOpacity = '1';
+    path.style.strokeOpacity = '0';
+    path.style.strokeDashoffset = '0';
+    return;
+  }
+
+  play();
+  els.githubLink.addEventListener('mouseenter', play);
+  els.githubLink.addEventListener('focus', play);
 }
 
 async function loadMessageCatalog(uiLanguage) {
@@ -1392,6 +1421,7 @@ async function init() {
   applyStaticI18n();
   fillLanguageSelects();
   paintSettingsForm(currentSettings);
+  setupGithubIcon();
   if (currentSettings.baseUrl.trim()) {
     await refreshModelOptions({ quiet: true });
   }

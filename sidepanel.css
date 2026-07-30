@@ -51,6 +51,9 @@
   --focus-ring: rgba(31, 122, 140, 0.4);
   --button-text: #ffffff;
   --quote-bar: #1f7a8c;
+  --logo-blue: #299ed1;
+  --logo-teal: #2ebcd5;
+  --logo-purple: #7264c7;
   --radius: 12px;
   --radius-sm: 8px;
   --font: "Plus Jakarta Sans", "Segoe UI", "Noto Sans", "Noto Sans CJK JP",
@@ -145,7 +148,54 @@ body::before {
 .top-actions {
   display: flex;
   align-items: center;
+  gap: 2px;
   flex-shrink: 0;
+}
+
+a.icon-btn {
+  text-decoration: none;
+  color: inherit;
+}
+
+.github-btn .github-icon {
+  display: block;
+  overflow: visible;
+}
+
+.github-btn .github-path {
+  --github-len: 110;
+  fill: url(#github-logo-grad);
+  fill-opacity: 0;
+  stroke: url(#github-logo-grad);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 1;
+  stroke-dasharray: var(--github-len);
+  stroke-dashoffset: var(--github-len);
+}
+
+.github-btn .github-path.is-drawing {
+  animation:
+    github-draw 1.25s cubic-bezier(0.4, 0, 0.2, 1) forwards,
+    github-fill 0.4s ease 1s forwards;
+}
+
+.github-btn:hover .github-icon {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--logo-teal) 55%, transparent));
+}
+
+@keyframes github-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes github-fill {
+  to {
+    fill-opacity: 1;
+    stroke-opacity: 0;
+  }
 }
 
 .brand {
@@ -1098,10 +1148,18 @@ select:focus {
   .action-tab,
   .action-item,
   .icon-btn,
+  .github-btn .github-icon,
+  .github-btn .github-path,
   .media-card,
   .cancel-ring {
     animation: none;
     transition: none;
+  }
+
+  .github-btn .github-path {
+    fill-opacity: 1;
+    stroke-opacity: 0;
+    stroke-dashoffset: 0;
   }
 
   .cancel-ring {
