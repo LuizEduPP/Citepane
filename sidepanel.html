@@ -17,9 +17,6 @@
         </div>
       </div>
       <div class="top-actions">
-        <button type="button" id="copy-btn" class="ghost compact" data-i18n="uiCopy" hidden>
-          Copy
-        </button>
         <button
           type="button"
           id="settings-btn"
@@ -117,7 +114,12 @@
 
       <section id="job" class="job" hidden>
         <p id="action-label" class="eyebrow" hidden></p>
-        <p id="status" class="status muted" hidden></p>
+        <div id="status-row" class="status-row" hidden>
+          <p id="status" class="status muted"></p>
+          <button type="button" id="cancel-btn" class="ghost compact" data-i18n="uiCancel" hidden>
+            Cancel
+          </button>
+        </div>
 
         <section id="selection-wrap" class="panel-section" hidden>
           <div class="section-head">
@@ -144,6 +146,9 @@
         <section id="result-wrap" class="panel-section result-section" hidden>
           <div class="section-head">
             <h2 data-i18n="uiResult">Result</h2>
+            <button type="button" id="copy-btn" class="ghost compact" data-i18n="uiCopy" hidden>
+              Copy
+            </button>
           </div>
           <div id="result" class="result-box markdown-body"></div>
           <p id="error" class="error" hidden></p>

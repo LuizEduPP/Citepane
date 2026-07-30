@@ -27,15 +27,27 @@ async function ensureContextMenus() {
 
   // Only on web pages — never inside the Citepane side panel (chrome-extension://).
   const documentUrlPatterns = ['http://*/*', 'https://*/*'];
-  const base = {
+  const selectionOnly = {
     contexts: ['selection'],
+    documentUrlPatterns,
+  };
+  const pageOrSelection = {
+    contexts: ['page', 'selection'],
     documentUrlPatterns,
   };
 
   chrome.contextMenus.create({
     id: EXT_PARENT_MENU_ID,
     title: t('menuRoot'),
-    ...base,
+    ...pageOrSelection,
+  });
+
+  // Direct child: available with or without a text selection.
+  chrome.contextMenus.create({
+    id: 'summarize-page',
+    parentId: EXT_PARENT_MENU_ID,
+    title: t('actionSummarizePage'),
+    ...pageOrSelection,
   });
 
   for (const group of ACTION_MENU_GROUPS) {
@@ -43,7 +55,7 @@ async function ensureContextMenus() {
       id: group.id,
       parentId: EXT_PARENT_MENU_ID,
       title: t(group.titleKey),
-      ...base,
+      ...selectionOnly,
     });
 
     if (group.kind === 'translate') {
@@ -52,13 +64,17 @@ async function ensureContextMenus() {
           id: `${TRANSLATE_ACTION_PREFIX}${language.code}`,
           parentId: group.id,
           title: language.label,
-          ...base,
+          ...selectionOnly,
         });
       }
       continue;
     }
 
     for (const actionId of group.actionIds) {
+      // Already created as a direct child of the root menu.
+      if (actionId === 'summarize-page') {
+        continue;
+      }
       const action = ACTION_BY_ID[actionId];
       if (!action) {
         throw new Error(`Unknown action in menu group ${group.id}: ${actionId}`);
@@ -67,18 +83,10 @@ async function ensureContextMenus() {
         id: action.id,
         parentId: group.id,
         title: t(action.titleKey),
-        ...base,
+        ...selectionOnly,
       });
     }
   }
-
-  // Always available for the page, including when text is selected.
-  chrome.contextMenus.create({
-    id: 'citepane-summarize-page',
-    title: `${t('menuRoot')} — ${t('actionSummarizePage')}`,
-    contexts: ['page', 'selection'],
-    documentUrlPatterns,
-  });
 }
 
 function emptyPageContext(tabUrl) {
@@ -282,10 +290,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  let actionId = String(info.menuItemId);
-  if (actionId === 'citepane-summarize-page') {
-    actionId = 'summarize-page';
-  }
+  const actionId = String(info.menuItemId);
   if (
     actionId === EXT_PARENT_MENU_ID ||
     ACTION_MENU_GROUPS.some((group) => group.id === actionId)

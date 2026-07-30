@@ -131,6 +131,9 @@
   "uiLoading": {
     "message": "Arbeitet…"
   },
+  "uiCancel": {
+    "message": "Abbrechen"
+  },
   "uiIdle": {
     "message": "Text auf einer Seite markieren, um ihn hier zu sehen; dann Rechtsklick auf Citepane und Aktion wählen."
   },

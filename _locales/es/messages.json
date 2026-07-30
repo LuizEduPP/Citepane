@@ -131,6 +131,9 @@
   "uiLoading": {
     "message": "Procesando…"
   },
+  "uiCancel": {
+    "message": "Cancelar"
+  },
   "uiIdle": {
     "message": "Selecciona texto en la página para verlo aquí; luego clic derecho en Citepane y elige una acción."
   },

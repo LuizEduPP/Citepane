@@ -131,6 +131,9 @@
   "uiLoading": {
     "message": "Traitement…"
   },
+  "uiCancel": {
+    "message": "Annuler"
+  },
   "uiIdle": {
     "message": "Sélectionnez du texte sur une page pour l’aperçu ici, puis clic droit sur Citepane et choisissez une action."
   },

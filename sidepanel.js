@@ -10,6 +10,7 @@ const localeFolderByCode = Object.freeze({
 let messageCatalog = null;
 let currentSettings = getDefaultSettings();
 let activeAbort = null;
+let cancelRequested = false;
 let latestResultText = '';
 let lastLiveSelection = '';
 
@@ -26,6 +27,8 @@ const els = {
   sources: document.getElementById('sources'),
   resultWrap: document.getElementById('result-wrap'),
   status: document.getElementById('status'),
+  statusRow: document.getElementById('status-row'),
+  cancelBtn: document.getElementById('cancel-btn'),
   result: document.getElementById('result'),
   error: document.getElementById('error'),
   copyBtn: document.getElementById('copy-btn'),
@@ -122,7 +125,36 @@ function setActionLabel(text) {
 function setStatus(text) {
   const status = typeof text === 'string' ? text.trim() : '';
   els.status.textContent = status;
-  els.status.hidden = !status;
+  syncStatusRow();
+}
+
+function setCancelAvailable(available) {
+  els.cancelBtn.hidden = !available;
+  syncStatusRow();
+}
+
+function syncStatusRow() {
+  const hasStatus = Boolean(els.status.textContent);
+  const canCancel = !els.cancelBtn.hidden;
+  els.statusRow.hidden = !(hasStatus || canCancel);
+}
+
+function cancelInference() {
+  cancelRequested = true;
+  if (activeAbort) {
+    activeAbort.abort();
+    activeAbort = null;
+  }
+  setStatus('');
+  setCancelAvailable(false);
+  setActionsEnabled(true);
+  if (latestResultText) {
+    setCopyAvailable(true);
+  }
+}
+
+function setCopyAvailable(available) {
+  els.copyBtn.hidden = !(available && latestResultText);
 }
 
 function syncResultSection() {
@@ -185,7 +217,7 @@ function renderMediaGallery(evidence, captionsByIndex = {}) {
 
   if (!Array.isArray(evidence) || evidence.length === 0) {
     latestResultText = '';
-    els.copyBtn.hidden = true;
+    setCopyAvailable(false);
     syncResultSection();
     return;
   }
@@ -236,7 +268,7 @@ function renderMediaGallery(evidence, captionsByIndex = {}) {
 
   els.result.append(grid);
   latestResultText = mediaCopyText(evidence, captionsByIndex);
-  els.copyBtn.hidden = !latestResultText;
+  setCopyAvailable(false);
   els.error.hidden = true;
   els.error.textContent = '';
   syncResultSection();
@@ -737,7 +769,6 @@ function setResultText(text) {
       anchor.setAttribute('rel', 'noopener noreferrer');
     });
   }
-  els.copyBtn.hidden = !compacted;
   syncResultSection();
 }
 
@@ -747,13 +778,15 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
     activeAbort = null;
   }
 
+  cancelRequested = true;
   setActionLabel('');
   setStatus('');
+  setCancelAvailable(false);
   els.error.hidden = true;
   els.error.textContent = '';
   latestResultText = '';
   els.result.replaceChildren();
-  els.copyBtn.hidden = true;
+  setCopyAvailable(false);
   els.resultWrap.hidden = true;
   renderSources([]);
 
@@ -770,6 +803,16 @@ async function runJob(job) {
 
   const selectionText = (job.selectionText || '').trim();
   lastLiveSelection = selectionText;
+
+  // New loading job starts a fresh run; ignore a ready job after cancel.
+  if (job.status === 'loading') {
+    cancelRequested = false;
+  }
+  if (cancelRequested && job.status === 'ready') {
+    setCancelAvailable(false);
+    setActionsEnabled(true);
+    return;
+  }
 
   els.idle.hidden = true;
   els.job.hidden = false;
@@ -806,10 +849,11 @@ async function runJob(job) {
 
   if (job.status === 'loading') {
     setStatus(uiMessage('uiLoading'));
+    setCopyAvailable(false);
+    setCancelAvailable(true);
     if (!(action && isMediaTooltipAction(action))) {
       latestResultText = '';
       els.result.replaceChildren();
-      els.copyBtn.hidden = true;
       syncResultSection();
     }
     els.error.hidden = true;
@@ -820,10 +864,11 @@ async function runJob(job) {
 
   if (job.status === 'error') {
     setStatus('');
+    setCopyAvailable(false);
+    setCancelAvailable(false);
     if (!(action && isMediaTooltipAction(action))) {
       latestResultText = '';
       els.result.replaceChildren();
-      els.copyBtn.hidden = true;
     }
     els.error.hidden = false;
     els.error.textContent = job.error || uiMessage('errorApi');
@@ -842,7 +887,8 @@ async function runJob(job) {
     setStatus('');
     latestResultText = '';
     els.result.replaceChildren();
-    els.copyBtn.hidden = true;
+    setCopyAvailable(false);
+    setCancelAvailable(false);
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoEvidence');
     syncResultSection();
@@ -853,6 +899,8 @@ async function runJob(job) {
   setStatus(uiMessage('uiLoading'));
   els.error.hidden = true;
   els.error.textContent = '';
+  setCopyAvailable(false);
+  setCancelAvailable(true);
   setActionsEnabled(false);
 
   const mediaMode = isMediaTooltipAction(action);
@@ -861,8 +909,14 @@ async function runJob(job) {
   } else {
     latestResultText = '';
     els.result.replaceChildren();
-    els.copyBtn.hidden = true;
     syncResultSection();
+  }
+
+  if (cancelRequested) {
+    setCancelAvailable(false);
+    setStatus('');
+    setActionsEnabled(true);
+    return;
   }
 
   const controller = new AbortController();
@@ -881,11 +935,15 @@ async function runJob(job) {
           },
     });
 
+    if (cancelRequested) {
+      return;
+    }
+
     if (mediaMode) {
       const captions = parseMediaCaptions(full);
       applyMediaCaptions(captions);
       latestResultText = mediaCopyText(job.evidence, captions);
-      els.copyBtn.hidden = !latestResultText;
+      setCopyAvailable(true);
       setStatus('');
       await chrome.storage.session.set({
         [STORAGE_LAST_RESULT_KEY]: {
@@ -896,6 +954,7 @@ async function runJob(job) {
       });
     } else {
       setResultText(full);
+      setCopyAvailable(true);
       setStatus('');
       await chrome.storage.session.set({
         [STORAGE_LAST_RESULT_KEY]: {
@@ -906,10 +965,15 @@ async function runJob(job) {
       });
     }
   } catch (error) {
-    if (error?.name === 'AbortError') {
+    if (error?.name === 'AbortError' || cancelRequested) {
+      setStatus('');
+      if (latestResultText) {
+        setCopyAvailable(true);
+      }
       return;
     }
     setStatus('');
+    setCopyAvailable(false);
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
     syncResultSection();
@@ -917,6 +981,7 @@ async function runJob(job) {
     if (activeAbort === controller) {
       activeAbort = null;
     }
+    setCancelAvailable(false);
     setActionsEnabled(true);
   }
 }
@@ -1011,6 +1076,10 @@ els.copyBtn.addEventListener('click', async () => {
 
 els.summarizePageBtn?.addEventListener('click', () => {
   requestRunAction('summarize-page');
+});
+
+els.cancelBtn.addEventListener('click', () => {
+  cancelInference();
 });
 
 let activeActionGroupId = null;
@@ -1228,13 +1297,15 @@ function resetPanelUi() {
 
   lastLiveSelection = '';
   latestResultText = '';
+  cancelRequested = false;
   setSettingsOpen(false);
   setActionLabel('');
   setStatus('');
+  setCancelAvailable(false);
   els.error.hidden = true;
   els.error.textContent = '';
   els.result.replaceChildren();
-  els.copyBtn.hidden = true;
+  setCopyAvailable(false);
   els.resultWrap.hidden = true;
   renderSources([]);
   setSelectionVisible('');

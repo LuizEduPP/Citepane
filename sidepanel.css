@@ -391,7 +391,7 @@ main {
 
 .section-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
   min-height: 1.1em;
@@ -406,10 +406,30 @@ main {
   letter-spacing: 0.1em;
 }
 
+.section-head #copy-btn {
+  flex-shrink: 0;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.status-row[hidden] {
+  display: none !important;
+}
+
 .status {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 500;
+  min-width: 0;
+}
+
+.status-row #cancel-btn {
+  flex-shrink: 0;
 }
 
 .muted {

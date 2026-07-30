@@ -131,6 +131,9 @@
   "uiLoading": {
     "message": "Working…"
   },
+  "uiCancel": {
+    "message": "Cancel"
+  },
   "uiIdle": {
     "message": "Select text on a page to preview it here, then right-click Citepane and pick an action."
   },
