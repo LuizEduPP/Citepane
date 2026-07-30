@@ -11,9 +11,13 @@ let messageCatalog = null;
 let currentSettings = getDefaultSettings();
 let activeAbort = null;
 let cancelRequested = false;
+let localCancelledAt = 0;
 let inferenceBusy = false;
 let latestResultText = '';
 let lastLiveSelection = '';
+let activeJobToken = '';
+let lastHandledJobKey = '';
+let runJobSeq = 0;
 
 const els = {
   idle: document.getElementById('idle'),
@@ -139,18 +143,52 @@ function syncStatusRow() {
   els.statusRow.hidden = !(hasStatus || canCancel);
 }
 
-function cancelInference() {
+function markLocalCancelled(createdAt) {
+  const stamp =
+    typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : Date.now();
+  localCancelledAt = Math.max(localCancelledAt, stamp);
   cancelRequested = true;
+  return localCancelledAt;
+}
+
+function jobIsCancelled(job) {
+  if (typeof job?.createdAt !== 'number') {
+    return cancelRequested;
+  }
+  return job.createdAt <= localCancelledAt;
+}
+
+function cancelInference() {
+  const stamp = markLocalCancelled(Date.now());
+  runJobSeq += 1;
+  activeJobToken = '';
+
   if (activeAbort) {
     activeAbort.abort();
     activeAbort = null;
   }
 
+  // Instant cancel in the service worker (avoids storage race during search).
+  chrome.runtime
+    .sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp })
+    .catch(() => {});
+
   chrome.storage.session
     .get(STORAGE_PENDING_JOB_KEY)
     .then(async (stored) => {
-      const createdAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt || Date.now();
-      await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: createdAt });
+      const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
+      if (typeof pendingAt === 'number') {
+        markLocalCancelled(pendingAt);
+        try {
+          await chrome.runtime.sendMessage({
+            type: MESSAGE_CANCEL_JOB,
+            createdAt: pendingAt,
+          });
+        } catch {
+          // ignore
+        }
+      }
+      await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: localCancelledAt });
       await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
     })
     .catch(() => {});
@@ -162,20 +200,16 @@ function cancelInference() {
   els.error.hidden = true;
   els.error.textContent = '';
 
-  if (latestResultText) {
-    setCopyAvailable(true);
-    syncResultSection();
-  } else {
-    // Drop in-progress empty/partial UI (loading gallery without captions, etc.).
-    els.result.replaceChildren();
-    setCopyAvailable(false);
-    els.resultWrap.hidden = true;
-    renderSources([]);
-  }
+  // Always drop in-progress output so cancel looks definitive.
+  latestResultText = '';
+  els.result.replaceChildren();
+  setCopyAvailable(false);
+  els.resultWrap.hidden = true;
+  renderSources([]);
 }
 
 async function jobWasCancelledAsync(job) {
-  if (cancelRequested) {
+  if (jobIsCancelled(job)) {
     return true;
   }
   if (typeof job?.createdAt !== 'number') {
@@ -184,9 +218,12 @@ async function jobWasCancelledAsync(job) {
   try {
     const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
     const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
-    return typeof cancelledAt === 'number' && job.createdAt <= cancelledAt;
+    if (typeof cancelledAt === 'number') {
+      localCancelledAt = Math.max(localCancelledAt, cancelledAt);
+    }
+    return job.createdAt <= localCancelledAt;
   } catch {
-    return false;
+    return jobIsCancelled(job);
   }
 }
 
@@ -667,7 +704,13 @@ async function streamChatCompletion({ settings, messages, signal, onDelta }) {
 
   const contentType = response.headers.get('content-type') || '';
   if (!contentType.includes('text/event-stream') && !contentType.includes('text/plain')) {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
     const data = await response.json();
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
     const text = extractDeltaContent(data);
     if (!text) {
       throw new Error(`${uiMessage('errorApi')} Empty completion payload`);
@@ -681,42 +724,63 @@ async function streamChatCompletion({ settings, messages, signal, onDelta }) {
     throw new Error(`${uiMessage('errorApi')} Missing response body`);
   }
 
+  const onAbort = () => {
+    reader.cancel().catch(() => {});
+  };
+  if (signal) {
+    if (signal.aborted) {
+      onAbort();
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+
   const decoder = new TextDecoder();
   let buffer = '';
   let full = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
+  try {
+    while (true) {
+      if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split('\n');
+      buffer = chunks.pop() || '';
+
+      for (const rawLine of chunks) {
+        const line = rawLine.trim();
+        if (!line.startsWith('data:')) {
+          continue;
+        }
+        const data = line.slice(5).trim();
+        if (!data || data === '[DONE]') {
+          continue;
+        }
+
+        let payload;
+        try {
+          payload = JSON.parse(data);
+        } catch {
+          throw new Error(`${uiMessage('errorApi')} Invalid SSE JSON`);
+        }
+
+        const delta = extractDeltaContent(payload);
+        if (delta) {
+          full += delta;
+          onDelta(delta);
+        }
+      }
     }
-
-    buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split('\n');
-    buffer = chunks.pop() || '';
-
-    for (const rawLine of chunks) {
-      const line = rawLine.trim();
-      if (!line.startsWith('data:')) {
-        continue;
-      }
-      const data = line.slice(5).trim();
-      if (!data || data === '[DONE]') {
-        continue;
-      }
-
-      let payload;
-      try {
-        payload = JSON.parse(data);
-      } catch {
-        throw new Error(`${uiMessage('errorApi')} Invalid SSE JSON`);
-      }
-
-      const delta = extractDeltaContent(payload);
-      if (delta) {
-        full += delta;
-        onDelta(delta);
-      }
+  } finally {
+    if (signal) {
+      signal.removeEventListener('abort', onAbort);
     }
   }
 
@@ -815,7 +879,9 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
     activeAbort = null;
   }
 
-  cancelRequested = true;
+  const stamp = markLocalCancelled(Date.now());
+  runJobSeq += 1;
+  activeJobToken = '';
   setActionLabel('');
   setStatus('');
   setCancelAvailable(false);
@@ -829,11 +895,15 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
   renderSources([]);
 
   if (clearJobStorage) {
+    chrome.runtime.sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp }).catch(() => {});
     chrome.storage.session
       .get(STORAGE_PENDING_JOB_KEY)
       .then(async (stored) => {
-        const createdAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt || Date.now();
-        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: createdAt });
+        const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
+        if (typeof pendingAt === 'number') {
+          markLocalCancelled(pendingAt);
+        }
+        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: localCancelledAt });
         await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY]);
       })
       .catch(() => {});
@@ -841,25 +911,44 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
 }
 
 async function runJob(job) {
-  if (activeAbort) {
-    activeAbort.abort();
-    activeAbort = null;
+  const jobToken = `${job?.createdAt || 0}:${job?.status || ''}:${job?.actionId || ''}`;
+  if (jobToken === activeJobToken && job?.status === 'ready') {
+    // Same ready job already running (message + storage dual delivery).
+    return;
   }
 
-  const selectionText = (job.selectionText || '').trim();
-  lastLiveSelection = selectionText;
-
-  if (await jobWasCancelledAsync(job)) {
+  // Don't abort an in-flight stream when a duplicate/stale event arrives after cancel.
+  if (activeAbort && jobIsCancelled(job)) {
     setCancelAvailable(false);
     setInferenceBusy(false);
     setStatus('');
     return;
   }
 
-  // Fresh loading job that was not cancelled — allow a new run.
-  if (job.status === 'loading') {
+  if (activeAbort) {
+    activeAbort.abort();
+    activeAbort = null;
+  }
+
+  const selectionText = (job.selectionText || '').trim();
+  if (selectionText) {
+    lastLiveSelection = selectionText;
+  }
+
+  if (jobIsCancelled(job) || (await jobWasCancelledAsync(job))) {
+    setCancelAvailable(false);
+    setInferenceBusy(false);
+    setStatus('');
+    return;
+  }
+
+  // Only a newer loading job clears the cancel flag (watermark stays for older jobs).
+  if (job.status === 'loading' && typeof job.createdAt === 'number' && job.createdAt > localCancelledAt) {
     cancelRequested = false;
   }
+
+  const seq = ++runJobSeq;
+  activeJobToken = jobToken;
 
   els.idle.hidden = true;
   els.job.hidden = false;
@@ -958,7 +1047,7 @@ async function runJob(job) {
     syncResultSection();
   }
 
-  if (cancelRequested) {
+  if (jobIsCancelled(job) || cancelRequested) {
     setCancelAvailable(false);
     setStatus('');
     setInferenceBusy(false);
@@ -977,11 +1066,14 @@ async function runJob(job) {
       onDelta: mediaMode
         ? () => {}
         : (delta) => {
+            if (jobIsCancelled(job) || cancelRequested || seq !== runJobSeq) {
+              return;
+            }
             setResultText(latestResultText + delta);
           },
     });
 
-    if (cancelRequested) {
+    if (jobIsCancelled(job) || cancelRequested || seq !== runJobSeq) {
       return;
     }
 
@@ -1011,7 +1103,7 @@ async function runJob(job) {
       });
     }
   } catch (error) {
-    if (error?.name === 'AbortError' || cancelRequested) {
+    if (error?.name === 'AbortError' || cancelRequested || jobIsCancelled(job)) {
       setStatus('');
       if (latestResultText) {
         setCopyAvailable(true);
@@ -1027,8 +1119,13 @@ async function runJob(job) {
     if (activeAbort === controller) {
       activeAbort = null;
     }
-    setCancelAvailable(false);
-    setInferenceBusy(false);
+    if (seq === runJobSeq) {
+      setCancelAvailable(false);
+      setInferenceBusy(false);
+      if (activeJobToken === jobToken) {
+        activeJobToken = '';
+      }
+    }
   }
 }
 
@@ -1038,7 +1135,7 @@ async function loadPendingJob() {
   if (!job) {
     return;
   }
-  await runJob(job);
+  enqueueJob(job);
 }
 
 els.refreshModels.addEventListener('click', async () => {
@@ -1333,16 +1430,23 @@ function applyLiveSelection(text) {
   setActionsEnabled(!inferenceBusy);
 }
 
-function resetPanelUi() {
+function resetPanelUi({ cancelCurrent = false } = {}) {
   if (activeAbort) {
     activeAbort.abort();
     activeAbort = null;
+  }
+
+  if (cancelCurrent) {
+    markLocalCancelled(Date.now());
   }
 
   lastLiveSelection = '';
   latestResultText = '';
   cancelRequested = false;
   inferenceBusy = false;
+  activeJobToken = '';
+  lastHandledJobKey = '';
+  runJobSeq += 1;
   setSettingsOpen(false);
   setActionLabel('');
   setStatus('');
@@ -1365,8 +1469,13 @@ function clearPanelSession() {
     .get(STORAGE_PENDING_JOB_KEY)
     .then(async (stored) => {
       const pending = stored[STORAGE_PENDING_JOB_KEY];
-      if (pending?.createdAt) {
-        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: pending.createdAt });
+      const stamp =
+        typeof pending?.createdAt === 'number' ? pending.createdAt : Date.now();
+      markLocalCancelled(stamp);
+      try {
+        await chrome.runtime.sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp });
+      } catch {
+        // Service worker may be restarting.
       }
       await chrome.storage.session.remove([
         STORAGE_PENDING_JOB_KEY,
@@ -1378,25 +1487,32 @@ function clearPanelSession() {
 }
 
 function resetPanelOnClose() {
-  resetPanelUi();
+  resetPanelUi({ cancelCurrent: true });
   clearPanelSession();
 }
 
 chrome.runtime.connect({ name: SIDEPANEL_PORT_NAME });
 
+// Real unload only — visibilitychange fires on focus loss / DevTools and must not wipe jobs.
 window.addEventListener('pagehide', () => {
   resetPanelOnClose();
 });
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    resetPanelOnClose();
+function enqueueJob(job) {
+  if (!job) {
+    return;
   }
-});
+  const key = `${job.createdAt || 0}:${job.status || ''}:${job.actionId || ''}`;
+  if (key === lastHandledJobKey) {
+    return;
+  }
+  lastHandledJobKey = key;
+  runJob(job);
+}
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === MESSAGE_JOB_UPDATED && message.job) {
-    runJob(message.job);
+    enqueueJob(message.job);
   }
 });
 
@@ -1414,7 +1530,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     const jobSelection = (job.selectionText || '').trim();
     // Ignore stale jobs after the user already selected different text.
     if (!lastLiveSelection || !jobSelection || jobSelection === lastLiveSelection) {
-      runJob(job);
+      enqueueJob(job);
     }
   }
 });
@@ -1429,8 +1545,31 @@ async function init() {
   if (currentSettings.baseUrl.trim()) {
     await refreshModelOptions({ quiet: true });
   }
-  // Fresh open: idle until a new selection or job arrives (closing clears session).
-  resetPanelUi();
+
+  const session = await chrome.storage.session.get([
+    STORAGE_CANCELLED_JOB_KEY,
+    STORAGE_LIVE_SELECTION_KEY,
+  ]);
+  if (typeof session[STORAGE_CANCELLED_JOB_KEY] === 'number') {
+    localCancelledAt = Math.max(localCancelledAt, session[STORAGE_CANCELLED_JOB_KEY]);
+  }
+
+  // Soft reset only — must NOT cancel a pending job that opened this panel.
+  resetPanelUi({ cancelCurrent: false });
+
+  const liveText =
+    typeof session[STORAGE_LIVE_SELECTION_KEY]?.text === 'string'
+      ? session[STORAGE_LIVE_SELECTION_KEY].text.trim()
+      : '';
+  if (liveText) {
+    lastLiveSelection = liveText;
+    els.idle.hidden = true;
+    els.job.hidden = false;
+    setSelectionVisible(liveText);
+    setActionsVisible(true);
+    setActionsEnabled(true);
+  }
+
   await loadPendingJob();
 }
 

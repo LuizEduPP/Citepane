@@ -1,5 +1,8 @@
 importScripts('defaults.js', 'search.js');
 
+/** In-memory cancel watermark — avoids storage races with in-flight search. */
+let cancelledJobAtMem = 0;
+
 function t(key) {
   const message = chrome.i18n.getMessage(key);
   if (!message) {
@@ -13,11 +16,23 @@ async function readSettings() {
   return mergeSettings(stored[STORAGE_SETTINGS_KEY]);
 }
 
+function markJobCancelled(createdAt) {
+  const stamp =
+    typeof createdAt === 'number' && Number.isFinite(createdAt) ? createdAt : Date.now();
+  cancelledJobAtMem = Math.max(cancelledJobAtMem, stamp);
+  return chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: cancelledJobAtMem });
+}
+
 async function writePendingJob(job) {
   if (await isJobCancelled(job?.createdAt)) {
     return;
   }
   await chrome.storage.session.set({ [STORAGE_PENDING_JOB_KEY]: job });
+  // Re-check after await — cancel may have landed during the write.
+  if (await isJobCancelled(job?.createdAt)) {
+    await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
+    return;
+  }
   try {
     await chrome.runtime.sendMessage({ type: MESSAGE_JOB_UPDATED, job });
   } catch {
@@ -29,12 +44,18 @@ async function isJobCancelled(createdAt) {
   if (typeof createdAt !== 'number') {
     return false;
   }
+  if (createdAt <= cancelledJobAtMem) {
+    return true;
+  }
   try {
     const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
     const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
-    return typeof cancelledAt === 'number' && createdAt <= cancelledAt;
+    if (typeof cancelledAt === 'number' && cancelledAt > cancelledJobAtMem) {
+      cancelledJobAtMem = cancelledAt;
+    }
+    return createdAt <= cancelledJobAtMem;
   } catch {
-    return false;
+    return createdAt <= cancelledJobAtMem;
   }
 }
 
@@ -213,7 +234,8 @@ async function handleActionClick(actionId, selectionText, tab) {
   }
 
   const settings = await readSettings();
-  const createdAt = Date.now();
+  // Stay strictly newer than any cancel watermark (same-ms races).
+  const createdAt = Math.max(Date.now(), cancelledJobAtMem + 1);
 
   const loadingJob = {
     actionId: action.id,
@@ -432,6 +454,8 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 
   // Sync the current tab as soon as the side panel connects.
+  // Session cleanup is owned by the side panel pagehide handler — not port
+  // disconnect — because MV3 service worker restarts also drop the port.
   chrome.tabs
     .query({ active: true, lastFocusedWindow: true })
     .then(async (tabs) => {
@@ -440,28 +464,28 @@ chrome.runtime.onConnect.addListener((port) => {
       }
     })
     .catch(() => {});
-
-  port.onDisconnect.addListener(() => {
-    chrome.storage.session
-      .get(STORAGE_PENDING_JOB_KEY)
-      .then(async (stored) => {
-        const pending = stored[STORAGE_PENDING_JOB_KEY];
-        if (pending?.createdAt) {
-          await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: pending.createdAt });
-        }
-        await chrome.storage.session.remove([
-          STORAGE_PENDING_JOB_KEY,
-          STORAGE_LAST_RESULT_KEY,
-          STORAGE_LIVE_SELECTION_KEY,
-        ]);
-      })
-      .catch((error) => {
-        console.error('Failed to clear side panel session', error);
-      });
-  });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === MESSAGE_CANCEL_JOB) {
+    const stamp =
+      typeof message.createdAt === 'number' && Number.isFinite(message.createdAt)
+        ? message.createdAt
+        : Date.now();
+    markJobCancelled(stamp)
+      .then(async () => {
+        await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
+        sendResponse({ ok: true, cancelledAt: cancelledJobAtMem });
+      })
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
   if (message?.type === MESSAGE_SELECTION_CHANGED) {
     const tabId = sender.tab?.id;
     const selectionText =
