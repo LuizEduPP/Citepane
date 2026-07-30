@@ -27,43 +27,48 @@ async function ensureContextMenus() {
 
   // Only on web pages — never inside the Citepane side panel (chrome-extension://).
   const documentUrlPatterns = ['http://*/*', 'https://*/*'];
+  const base = {
+    contexts: ['selection'],
+    documentUrlPatterns,
+  };
 
   chrome.contextMenus.create({
     id: EXT_PARENT_MENU_ID,
     title: t('menuRoot'),
-    contexts: ['selection'],
-    documentUrlPatterns,
+    ...base,
   });
 
-  const translateAfterId = 'simplify';
-
-  for (const action of ACTIONS) {
+  for (const group of ACTION_MENU_GROUPS) {
     chrome.contextMenus.create({
-      id: action.id,
+      id: group.id,
       parentId: EXT_PARENT_MENU_ID,
-      title: t(action.titleKey),
-      contexts: ['selection'],
-      documentUrlPatterns,
+      title: t(group.titleKey),
+      ...base,
     });
 
-    if (action.id === translateAfterId) {
-      chrome.contextMenus.create({
-        id: TRANSLATE_PARENT_MENU_ID,
-        parentId: EXT_PARENT_MENU_ID,
-        title: t('actionTranslate'),
-        contexts: ['selection'],
-        documentUrlPatterns,
-      });
-
+    if (group.kind === 'translate') {
       for (const language of LANGUAGES) {
         chrome.contextMenus.create({
           id: `${TRANSLATE_ACTION_PREFIX}${language.code}`,
-          parentId: TRANSLATE_PARENT_MENU_ID,
+          parentId: group.id,
           title: language.label,
-          contexts: ['selection'],
-          documentUrlPatterns,
+          ...base,
         });
       }
+      continue;
+    }
+
+    for (const actionId of group.actionIds) {
+      const action = ACTION_BY_ID[actionId];
+      if (!action) {
+        throw new Error(`Unknown action in menu group ${group.id}: ${actionId}`);
+      }
+      chrome.contextMenus.create({
+        id: action.id,
+        parentId: group.id,
+        title: t(action.titleKey),
+        ...base,
+      });
     }
   }
 }
@@ -248,7 +253,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   const actionId = info.menuItemId;
   if (
     actionId === EXT_PARENT_MENU_ID ||
-    actionId === TRANSLATE_PARENT_MENU_ID
+    ACTION_MENU_GROUPS.some((group) => group.id === actionId)
   ) {
     return;
   }

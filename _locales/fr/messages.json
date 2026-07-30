@@ -8,6 +8,15 @@
   "menuRoot": {
     "message": "Citepane"
   },
+  "menuGroupResearch": {
+    "message": "Recherche"
+  },
+  "menuGroupWriting": {
+    "message": "Écriture"
+  },
+  "menuGroupTranslate": {
+    "message": "Traduire"
+  },
   "actionExplain": {
     "message": "Expliquer"
   },

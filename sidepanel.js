@@ -318,6 +318,7 @@ function buildMessages(job, action) {
   const systemParts = [action.systemPrompt];
 
   if (!isTranslateActionId(action.id)) {
+    systemParts.push(MARKDOWN_FORMAT_RULE);
     systemParts.push(languageInstruction(job.responseLanguage));
   }
 
@@ -460,9 +461,33 @@ function renderSources(evidence) {
   }
 }
 
+function renderMarkdown(text) {
+  if (!text) {
+    return '';
+  }
+
+  const rawHtml = marked.parse(text, {
+    async: false,
+    gfm: true,
+    breaks: true,
+  });
+
+  return DOMPurify.sanitize(rawHtml, {
+    USE_PROFILES: { html: true },
+  });
+}
+
 function setResultText(text) {
   latestResultText = text;
-  els.result.textContent = text;
+  if (!text) {
+    els.result.replaceChildren();
+  } else {
+    els.result.innerHTML = renderMarkdown(text);
+    els.result.querySelectorAll('a[href]').forEach((anchor) => {
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+    });
+  }
   els.copyBtn.hidden = !text;
 }
 

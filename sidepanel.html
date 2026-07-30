@@ -35,7 +35,7 @@
 
         <h2 data-i18n="uiResult">Result</h2>
         <p id="status" class="muted"></p>
-        <pre id="result" class="block result"></pre>
+        <div id="result" class="block result markdown-body"></div>
         <p id="error" class="error" hidden></p>
       </section>
     </main>
@@ -78,6 +78,8 @@
     </details>
 
     <script src="defaults.js"></script>
+    <script src="vendor/marked.umd.js"></script>
+    <script src="vendor/purify.min.js"></script>
     <script src="sidepanel.js"></script>
   </body>
 </html>

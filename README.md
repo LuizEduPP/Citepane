@@ -28,7 +28,7 @@ OpenAI-compatible backend (Ollama, LM Studio, cloud). Vanilla MV3, no build.
 | `background.js` | Context menus, page context, search, pending job |
 | `content.js` | Page context extraction |
 | `search.js` | DuckDuckGo HTML search |
-| `sidepanel.*` | Settings, chat completions (stream), copy |
+| `sidepanel.*` | Settings, chat completions (stream), Markdown result render, copy |
 
 Grounded actions use page context + DuckDuckGo (HTML → lite → Instant Answer). If search is blocked but the page still has usable context, the action continues with page evidence only. They fail fast only when neither source is usable.
 

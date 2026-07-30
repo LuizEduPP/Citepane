@@ -1,5 +1,5 @@
 const EXT_PARENT_MENU_ID = 'citepane-root';
-const TRANSLATE_PARENT_MENU_ID = 'citepane-translate';
+const TRANSLATE_PARENT_MENU_ID = 'citepane-group-translate';
 const TRANSLATE_ACTION_PREFIX = 'translate:';
 
 const STORAGE_SETTINGS_KEY = 'settings';
@@ -47,6 +47,10 @@ const GROUNDING_RULE =
   'Use ONLY the provided page context and search evidence. ' +
   'If evidence is insufficient, say clearly that there is not enough grounding. ' +
   'Do not invent facts. Cite source titles/URLs you relied on.';
+
+const MARKDOWN_FORMAT_RULE =
+  'Format the answer in Markdown when helpful (headings, bullet lists, numbered steps, bold, inline code, links). ' +
+  'Do not wrap the entire answer in a fenced code block.';
 
 const ACTIONS = Object.freeze([
   Object.freeze({
@@ -141,6 +145,39 @@ const ACTIONS = Object.freeze([
 const ACTION_BY_ID = Object.freeze(
   Object.fromEntries(ACTIONS.map((action) => [action.id, action])),
 );
+
+/** Context-menu grouping. `translate` is a special submenu of languages. */
+const ACTION_MENU_GROUPS = Object.freeze([
+  Object.freeze({
+    id: 'citepane-group-research',
+    titleKey: 'menuGroupResearch',
+    actionIds: Object.freeze([
+      'explain',
+      'define',
+      'fact-check',
+      'find-sources',
+      'context',
+      'pros-cons',
+      'counterpoints',
+    ]),
+  }),
+  Object.freeze({
+    id: 'citepane-group-writing',
+    titleKey: 'menuGroupWriting',
+    actionIds: Object.freeze([
+      'summarize',
+      'key-points',
+      'simplify',
+      'improve-writing',
+      'improve-prompt',
+    ]),
+  }),
+  Object.freeze({
+    id: 'citepane-group-translate',
+    titleKey: 'menuGroupTranslate',
+    kind: 'translate',
+  }),
+]);
 
 const LANGUAGE_BY_CODE = Object.freeze(
   Object.fromEntries(LANGUAGES.map((language) => [language.code, language])),
