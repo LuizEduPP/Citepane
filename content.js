@@ -64,9 +64,9 @@ function readLiveSelectionText() {
 let lastPublishedSelection = null;
 let selectionPublishTimer = null;
 
-function publishLiveSelection() {
+function publishLiveSelection({ force = false } = {}) {
   const selectionText = readLiveSelectionText();
-  if (selectionText === lastPublishedSelection) {
+  if (!force && selectionText === lastPublishedSelection) {
     return;
   }
   lastPublishedSelection = selectionText;
@@ -86,15 +86,46 @@ function scheduleLiveSelectionPublish() {
   if (selectionPublishTimer) {
     clearTimeout(selectionPublishTimer);
   }
-  selectionPublishTimer = setTimeout(publishLiveSelection, 160);
+  selectionPublishTimer = setTimeout(() => publishLiveSelection(), 160);
 }
 
 document.addEventListener('selectionchange', scheduleLiveSelectionPublish);
 document.addEventListener('mouseup', scheduleLiveSelectionPublish);
 document.addEventListener('keyup', scheduleLiveSelectionPublish);
 
+// When this tab becomes visible again (user switched back), sync selection to the panel.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    publishLiveSelection({ force: true });
+  }
+});
+
+window.addEventListener('focus', () => {
+  publishLiveSelection({ force: true });
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message || message.type !== MESSAGE_GET_PAGE_CONTEXT) {
+  if (!message) {
+    return false;
+  }
+
+  if (message.type === MESSAGE_GET_LIVE_SELECTION) {
+    try {
+      sendResponse({
+        ok: true,
+        selectionText: readLiveSelectionText(),
+        pageUrl: location.href,
+      });
+    } catch (error) {
+      sendResponse({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+    return false;
+  }
+
+  if (message.type !== MESSAGE_GET_PAGE_CONTEXT) {
     return false;
   }
 

@@ -11,6 +11,7 @@ let messageCatalog = null;
 let currentSettings = getDefaultSettings();
 let activeAbort = null;
 let cancelRequested = false;
+let inferenceBusy = false;
 let latestResultText = '';
 let lastLiveSelection = '';
 
@@ -46,7 +47,6 @@ const els = {
   uiLanguage: document.getElementById('ui-language'),
   theme: document.getElementById('theme'),
   settingsFeedback: document.getElementById('settings-feedback'),
-  summarizePageBtn: document.getElementById('summarize-page-btn'),
 };
 
 let themeMediaQuery = null;
@@ -145,11 +145,48 @@ function cancelInference() {
     activeAbort.abort();
     activeAbort = null;
   }
+
+  chrome.storage.session
+    .get(STORAGE_PENDING_JOB_KEY)
+    .then(async (stored) => {
+      const createdAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt || Date.now();
+      await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: createdAt });
+      await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
+    })
+    .catch(() => {});
+
+  setActionLabel('');
   setStatus('');
   setCancelAvailable(false);
-  setActionsEnabled(true);
+  setInferenceBusy(false);
+  els.error.hidden = true;
+  els.error.textContent = '';
+
   if (latestResultText) {
     setCopyAvailable(true);
+    syncResultSection();
+  } else {
+    // Drop in-progress empty/partial UI (loading gallery without captions, etc.).
+    els.result.replaceChildren();
+    setCopyAvailable(false);
+    els.resultWrap.hidden = true;
+    renderSources([]);
+  }
+}
+
+async function jobWasCancelledAsync(job) {
+  if (cancelRequested) {
+    return true;
+  }
+  if (typeof job?.createdAt !== 'number') {
+    return false;
+  }
+  try {
+    const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
+    const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
+    return typeof cancelledAt === 'number' && job.createdAt <= cancelledAt;
+  } catch {
+    return false;
   }
 }
 
@@ -782,6 +819,7 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
   setActionLabel('');
   setStatus('');
   setCancelAvailable(false);
+  setInferenceBusy(false);
   els.error.hidden = true;
   els.error.textContent = '';
   latestResultText = '';
@@ -791,7 +829,14 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
   renderSources([]);
 
   if (clearJobStorage) {
-    chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY]).catch(() => {});
+    chrome.storage.session
+      .get(STORAGE_PENDING_JOB_KEY)
+      .then(async (stored) => {
+        const createdAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt || Date.now();
+        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: createdAt });
+        await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY]);
+      })
+      .catch(() => {});
   }
 }
 
@@ -804,14 +849,16 @@ async function runJob(job) {
   const selectionText = (job.selectionText || '').trim();
   lastLiveSelection = selectionText;
 
-  // New loading job starts a fresh run; ignore a ready job after cancel.
+  if (await jobWasCancelledAsync(job)) {
+    setCancelAvailable(false);
+    setInferenceBusy(false);
+    setStatus('');
+    return;
+  }
+
+  // Fresh loading job that was not cancelled — allow a new run.
   if (job.status === 'loading') {
     cancelRequested = false;
-  }
-  if (cancelRequested && job.status === 'ready') {
-    setCancelAvailable(false);
-    setActionsEnabled(true);
-    return;
   }
 
   els.idle.hidden = true;
@@ -838,8 +885,7 @@ async function runJob(job) {
     setSelectionVisible(selectionText);
   }
   setActionsVisible(Boolean(selectionText));
-  collapseActionGroups();
-  setActionsEnabled(false);
+  setInferenceBusy(true);
 
   if (action && isMediaTooltipAction(action) && Array.isArray(job.evidence) && job.evidence.length > 0) {
     renderMediaGallery(job.evidence);
@@ -858,7 +904,7 @@ async function runJob(job) {
     }
     els.error.hidden = true;
     els.error.textContent = '';
-    setActionsEnabled(false);
+    setInferenceBusy(true);
     return;
   }
 
@@ -873,12 +919,12 @@ async function runJob(job) {
     els.error.hidden = false;
     els.error.textContent = job.error || uiMessage('errorApi');
     syncResultSection();
-    setActionsEnabled(true);
+    setInferenceBusy(false);
     return;
   }
 
   if (job.status !== 'ready') {
-    setActionsEnabled(true);
+    setInferenceBusy(false);
     return;
   }
 
@@ -892,7 +938,7 @@ async function runJob(job) {
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoEvidence');
     syncResultSection();
-    setActionsEnabled(true);
+    setInferenceBusy(false);
     return;
   }
 
@@ -901,7 +947,7 @@ async function runJob(job) {
   els.error.textContent = '';
   setCopyAvailable(false);
   setCancelAvailable(true);
-  setActionsEnabled(false);
+  setInferenceBusy(true);
 
   const mediaMode = isMediaTooltipAction(action);
   if (mediaMode) {
@@ -915,7 +961,7 @@ async function runJob(job) {
   if (cancelRequested) {
     setCancelAvailable(false);
     setStatus('');
-    setActionsEnabled(true);
+    setInferenceBusy(false);
     return;
   }
 
@@ -982,7 +1028,7 @@ async function runJob(job) {
       activeAbort = null;
     }
     setCancelAvailable(false);
-    setActionsEnabled(true);
+    setInferenceBusy(false);
   }
 }
 
@@ -1074,10 +1120,6 @@ els.copyBtn.addEventListener('click', async () => {
   }, 1200);
 });
 
-els.summarizePageBtn?.addEventListener('click', () => {
-  requestRunAction('summarize-page');
-});
-
 els.cancelBtn.addEventListener('click', () => {
   cancelInference();
 });
@@ -1147,6 +1189,9 @@ function renderActionGroupPanel(group) {
 }
 
 function setActiveActionGroup(groupId) {
+  if (inferenceBusy) {
+    return;
+  }
   if (activeActionGroupId === groupId) {
     collapseActionGroups();
     return;
@@ -1190,15 +1235,20 @@ function setActionsVisible(visible) {
 }
 
 function setActionsEnabled(enabled) {
+  if (!enabled) {
+    collapseActionGroups();
+  }
   els.actionTabs.querySelectorAll('button').forEach((node) => {
     node.disabled = !enabled;
   });
   els.actions.querySelectorAll('button, select').forEach((node) => {
     node.disabled = !enabled;
   });
-  if (els.summarizePageBtn) {
-    els.summarizePageBtn.disabled = !enabled;
-  }
+}
+
+function setInferenceBusy(busy) {
+  inferenceBusy = busy;
+  setActionsEnabled(!busy);
 }
 
 async function requestRunAction(actionId) {
@@ -1227,10 +1277,7 @@ async function requestRunAction(actionId) {
   els.error.hidden = true;
   els.error.textContent = '';
   syncResultSection();
-  setActionsEnabled(false);
-  if (els.summarizePageBtn) {
-    els.summarizePageBtn.disabled = true;
-  }
+  setInferenceBusy(true);
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -1247,10 +1294,7 @@ async function requestRunAction(actionId) {
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
     syncResultSection();
-    setActionsEnabled(true);
-    if (els.summarizePageBtn) {
-      els.summarizePageBtn.disabled = false;
-    }
+    setInferenceBusy(false);
   }
 }
 
@@ -1275,7 +1319,7 @@ function applyLiveSelection(text) {
     els.job.hidden = false;
     setSelectionVisible(trimmed);
     setActionsVisible(true);
-    setActionsEnabled(!activeAbort);
+    setActionsEnabled(!inferenceBusy);
     return;
   }
 
@@ -1286,7 +1330,7 @@ function applyLiveSelection(text) {
   els.job.hidden = false;
   setSelectionVisible(trimmed);
   setActionsVisible(true);
-  setActionsEnabled(true);
+  setActionsEnabled(!inferenceBusy);
 }
 
 function resetPanelUi() {
@@ -1298,6 +1342,7 @@ function resetPanelUi() {
   lastLiveSelection = '';
   latestResultText = '';
   cancelRequested = false;
+  inferenceBusy = false;
   setSettingsOpen(false);
   setActionLabel('');
   setStatus('');
@@ -1317,7 +1362,18 @@ function resetPanelUi() {
 
 function clearPanelSession() {
   chrome.storage.session
-    .remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY])
+    .get(STORAGE_PENDING_JOB_KEY)
+    .then(async (stored) => {
+      const pending = stored[STORAGE_PENDING_JOB_KEY];
+      if (pending?.createdAt) {
+        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: pending.createdAt });
+      }
+      await chrome.storage.session.remove([
+        STORAGE_PENDING_JOB_KEY,
+        STORAGE_LAST_RESULT_KEY,
+        STORAGE_LIVE_SELECTION_KEY,
+      ]);
+    })
     .catch(() => {});
 }
 

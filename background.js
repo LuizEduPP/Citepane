@@ -14,11 +14,27 @@ async function readSettings() {
 }
 
 async function writePendingJob(job) {
+  if (await isJobCancelled(job?.createdAt)) {
+    return;
+  }
   await chrome.storage.session.set({ [STORAGE_PENDING_JOB_KEY]: job });
   try {
     await chrome.runtime.sendMessage({ type: MESSAGE_JOB_UPDATED, job });
   } catch {
     // Side panel may be closed.
+  }
+}
+
+async function isJobCancelled(createdAt) {
+  if (typeof createdAt !== 'number') {
+    return false;
+  }
+  try {
+    const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
+    const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
+    return typeof cancelledAt === 'number' && createdAt <= cancelledAt;
+  } catch {
+    return false;
   }
 }
 
@@ -214,7 +230,15 @@ async function handleActionClick(actionId, selectionText, tab) {
   await writePendingJob(loadingJob);
 
   try {
+    if (await isJobCancelled(createdAt)) {
+      return;
+    }
+
     const pageContext = await requestPageContext(tab.id, tab.url);
+    if (await isJobCancelled(createdAt)) {
+      return;
+    }
+
     let evidence = [];
 
     if (action.id === 'summarize-page' && !pageBodyIsUsable(pageContext)) {
@@ -230,6 +254,10 @@ async function handleActionClick(actionId, selectionText, tab) {
         evidence = [];
       }
 
+      if (await isJobCancelled(createdAt)) {
+        return;
+      }
+
       if (!evidenceIsUsable(pageContext, evidence)) {
         if (searchError) {
           throw new Error(
@@ -240,6 +268,10 @@ async function handleActionClick(actionId, selectionText, tab) {
         }
         throw new Error(t('errorNoEvidence'));
       }
+    }
+
+    if (await isJobCancelled(createdAt)) {
+      return;
     }
 
     await writePendingJob({
@@ -262,6 +294,9 @@ async function handleActionClick(actionId, selectionText, tab) {
       error: null,
     });
   } catch (error) {
+    if (await isJobCancelled(createdAt)) {
+      return;
+    }
     await writePendingJob({
       ...loadingJob,
       status: 'error',
@@ -322,33 +357,126 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
+async function writeLiveSelection({ text = '', url = '', tabId = null } = {}) {
+  await chrome.storage.session.set({
+    [STORAGE_LIVE_SELECTION_KEY]: {
+      text: typeof text === 'string' ? text.trim() : '',
+      url: typeof url === 'string' ? url : '',
+      tabId: typeof tabId === 'number' ? tabId : null,
+      updatedAt: Date.now(),
+    },
+  });
+}
+
+async function syncLiveSelectionFromTab(tabId) {
+  if (typeof tabId !== 'number') {
+    return;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: MESSAGE_GET_LIVE_SELECTION,
+    });
+    if (response?.ok) {
+      await writeLiveSelection({
+        text: response.selectionText || '',
+        url: response.pageUrl || '',
+        tabId,
+      });
+      return;
+    }
+  } catch {
+    // No content script on this tab (chrome://, Web Store, not injected yet).
+  }
+
+  await writeLiveSelection({ text: '', url: '', tabId });
+}
+
+async function isActiveTab(tabId) {
+  if (typeof tabId !== 'number') {
+    return false;
+  }
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    return tabs.some((tab) => tab.id === tabId);
+  } catch {
+    return false;
+  }
+}
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  syncLiveSelectionFromTab(activeInfo.tabId).catch((error) => {
+    console.error('Failed to sync selection on tab activate', error);
+  });
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    return;
+  }
+  chrome.tabs
+    .query({ active: true, windowId })
+    .then(async (tabs) => {
+      if (tabs[0]?.id) {
+        await syncLiveSelectionFromTab(tabs[0].id);
+      }
+    })
+    .catch((error) => {
+      console.error('Failed to sync selection on window focus', error);
+    });
+});
+
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== SIDEPANEL_PORT_NAME) {
     return;
   }
 
+  // Sync the current tab as soon as the side panel connects.
+  chrome.tabs
+    .query({ active: true, lastFocusedWindow: true })
+    .then(async (tabs) => {
+      if (tabs[0]?.id) {
+        await syncLiveSelectionFromTab(tabs[0].id);
+      }
+    })
+    .catch(() => {});
+
   port.onDisconnect.addListener(() => {
     chrome.storage.session
-      .remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY])
+      .get(STORAGE_PENDING_JOB_KEY)
+      .then(async (stored) => {
+        const pending = stored[STORAGE_PENDING_JOB_KEY];
+        if (pending?.createdAt) {
+          await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: pending.createdAt });
+        }
+        await chrome.storage.session.remove([
+          STORAGE_PENDING_JOB_KEY,
+          STORAGE_LAST_RESULT_KEY,
+          STORAGE_LIVE_SELECTION_KEY,
+        ]);
+      })
       .catch((error) => {
         console.error('Failed to clear side panel session', error);
       });
   });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === MESSAGE_SELECTION_CHANGED) {
+    const tabId = sender.tab?.id;
     const selectionText =
       typeof message.selectionText === 'string' ? message.selectionText.trim() : '';
-    const payload = {
-      text: selectionText,
-      url: typeof message.pageUrl === 'string' ? message.pageUrl : '',
-      updatedAt: Date.now(),
-    };
+    const pageUrl = typeof message.pageUrl === 'string' ? message.pageUrl : '';
 
-    chrome.storage.session
-      .set({ [STORAGE_LIVE_SELECTION_KEY]: payload })
-      .then(() => sendResponse({ ok: true }))
+    isActiveTab(tabId)
+      .then(async (active) => {
+        if (!active) {
+          sendResponse({ ok: true, ignored: true });
+          return;
+        }
+        await writeLiveSelection({ text: selectionText, url: pageUrl, tabId });
+        sendResponse({ ok: true });
+      })
       .catch((error) =>
         sendResponse({
           ok: false,

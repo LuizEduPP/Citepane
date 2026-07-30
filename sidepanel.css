@@ -357,17 +357,6 @@ main {
   line-height: 1.45;
 }
 
-.page-actions {
-  display: flex;
-  justify-content: stretch;
-  margin-bottom: 4px;
-}
-
-.page-actions .ghost {
-  width: 100%;
-  justify-content: center;
-}
-
 .job {
   display: flex;
   flex-direction: column;
