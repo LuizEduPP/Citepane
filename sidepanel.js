@@ -687,8 +687,9 @@ els.form.addEventListener('submit', async (event) => {
       await refreshModelOptions({ quiet: true, interactive: false });
     }
 
-    els.settingsFeedback.hidden = false;
-    els.settingsFeedback.textContent = uiMessage('uiSaved');
+    els.settingsFeedback.hidden = true;
+    els.settingsFeedback.textContent = '';
+    setSettingsOpen(false);
   } catch (error) {
     els.settingsFeedback.hidden = false;
     els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
