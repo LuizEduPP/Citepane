@@ -1,14 +1,52 @@
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/plus-jakarta-sans-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("fonts/plus-jakarta-sans-latin-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("fonts/plus-jakarta-sans-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+}
+
 :root {
-  --bg: #12151a;
-  --bg-elev: #1a1f27;
-  --text: #e8ecf1;
-  --muted: #9aa3ad;
-  --accent: #3d9cf5;
-  --accent-soft: rgba(61, 156, 245, 0.14);
-  --danger: #ff6b6b;
-  --line: rgba(232, 236, 241, 0.08);
-  --radius: 10px;
-  --font: "Segoe UI", "IBM Plex Sans", system-ui, sans-serif;
+  --bg: #f4f6f8;
+  --bg-elev: #ffffff;
+  --text: #244464;
+  --text-strong: #1c3550;
+  --pane: #2c8497;
+  --muted: #747474;
+  --accent: #2c8497;
+  --accent-deep: #1054b4;
+  --accent-bright: #28b498;
+  --accent-soft: rgba(44, 132, 151, 0.12);
+  --accent-grad: linear-gradient(135deg, #1054b4 0%, #2c8497 48%, #28b498 100%);
+  --danger: #c0392b;
+  --line: rgba(36, 68, 100, 0.12);
+  --shadow: 0 1px 2px rgba(36, 68, 100, 0.04), 0 8px 24px rgba(36, 68, 100, 0.06);
+  --radius: 12px;
+  --font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
 }
 
@@ -21,23 +59,24 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(1200px 500px at 10% -10%, rgba(61, 156, 245, 0.12), transparent 55%),
+    radial-gradient(900px 420px at 0% -5%, rgba(40, 180, 152, 0.1), transparent 55%),
+    radial-gradient(800px 380px at 100% 0%, rgba(16, 84, 180, 0.08), transparent 50%),
     var(--bg);
   color: var(--text);
-  font: 14px/1.45 var(--font);
+  font: 14px/1.5 var(--font);
 }
 
 body {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  padding: 14px 14px 18px;
+  padding: 16px 16px 18px;
   gap: 14px;
 }
 
 .top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -45,14 +84,46 @@ body {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand img {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+
+.brand-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .brand h1 {
   margin: 0;
-  font-size: 1.05rem;
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.brand-cite {
+  color: var(--text-strong);
+}
+
+.brand-pane {
+  color: var(--pane);
+}
+
+.brand-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 1.3;
 }
 
 main {
@@ -65,20 +136,20 @@ main {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: var(--accent);
-  font-size: 0.75rem;
+  color: var(--pane);
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 h2 {
   margin: 12px 0 6px;
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
 }
 
 .muted {
@@ -92,14 +163,16 @@ h2 {
 
 .block {
   margin: 0;
-  padding: 10px 12px;
+  padding: 12px 14px;
   background: var(--bg-elev);
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  box-shadow: var(--shadow);
   white-space: pre-wrap;
   word-break: break-word;
   font-family: var(--mono);
   font-size: 0.82rem;
+  color: var(--text-strong);
   max-height: 180px;
   overflow: auto;
 }
@@ -108,8 +181,9 @@ h2 {
   max-height: none;
   min-height: 120px;
   font-family: var(--font);
-  font-size: 0.92rem;
-  line-height: 1.5;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--text-strong);
 }
 
 #sources {
@@ -117,14 +191,17 @@ h2 {
   padding-left: 18px;
   display: grid;
   gap: 8px;
+  color: var(--text);
 }
 
 #sources a {
-  color: var(--accent);
+  color: var(--pane);
   text-decoration: none;
+  font-weight: 500;
 }
 
 #sources a:hover {
+  color: var(--accent-deep);
   text-decoration: underline;
 }
 
@@ -132,40 +209,56 @@ button,
 input,
 select {
   font: inherit;
-  color: var(--text);
+  color: var(--text-strong);
 }
 
 button {
   border: 0;
-  border-radius: 8px;
-  background: var(--accent);
-  color: #041018;
-  font-weight: 650;
-  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-grad);
+  color: #ffffff;
+  font-weight: 600;
+  padding: 9px 14px;
   cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 84, 180, 0.18);
+}
+
+button:hover {
+  filter: brightness(1.04);
 }
 
 button.ghost {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--pane);
+  box-shadow: none;
+}
+
+button.ghost:hover {
+  filter: none;
+  background: rgba(44, 132, 151, 0.18);
 }
 
 button:disabled {
   opacity: 0.5;
   cursor: default;
+  filter: none;
 }
 
 .settings {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--bg-elev);
-  padding: 8px 10px 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px 14px;
 }
 
 .settings summary {
   cursor: pointer;
   font-weight: 600;
   color: var(--muted);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
   list-style: none;
 }
 
@@ -182,17 +275,19 @@ button:disabled {
 label {
   display: grid;
   gap: 4px;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 500;
   color: var(--muted);
 }
 
 input,
 select {
   width: 100%;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 1px solid var(--line);
-  background: #0e1116;
-  padding: 8px 10px;
+  background: #fbfcfd;
+  padding: 9px 11px;
+  color: var(--text-strong);
 }
 
 .model-row {
@@ -213,6 +308,7 @@ select {
 
 input:focus,
 select:focus {
-  outline: 2px solid rgba(61, 156, 245, 0.35);
+  outline: 2px solid rgba(44, 132, 151, 0.35);
   border-color: transparent;
+  background: #ffffff;
 }
