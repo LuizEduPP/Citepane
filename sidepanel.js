@@ -118,8 +118,24 @@ function setActionLabel(text) {
   els.actionLabel.hidden = !label;
 }
 
+function setStatus(text) {
+  const status = typeof text === 'string' ? text.trim() : '';
+  els.status.textContent = status;
+  els.status.hidden = !status;
+}
+
+function syncResultSection() {
+  const hasResult = Boolean(latestResultText);
+  const hasError = !els.error.hidden && Boolean(els.error.textContent);
+  els.resultWrap.hidden = !(hasResult || hasError);
+}
+
 function setResultVisible(visible) {
-  els.resultWrap.hidden = !visible;
+  if (!visible) {
+    els.resultWrap.hidden = true;
+    return;
+  }
+  syncResultSection();
 }
 
 function fillLanguageSelects() {
@@ -526,11 +542,7 @@ function setResultText(text) {
   latestResultText = text;
   if (!text) {
     els.result.replaceChildren();
-    if (els.error.hidden && !els.status.textContent) {
-      setResultVisible(false);
-    }
   } else {
-    setResultVisible(true);
     els.result.innerHTML = renderMarkdown(text);
     els.result.querySelectorAll('a[href]').forEach((anchor) => {
       anchor.setAttribute('target', '_blank');
@@ -538,6 +550,7 @@ function setResultText(text) {
     });
   }
   els.copyBtn.hidden = !text;
+  syncResultSection();
 }
 
 function clearGeneratedOutput({ clearJobStorage = true } = {}) {
@@ -547,11 +560,13 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
   }
 
   setActionLabel('');
-  els.status.textContent = '';
+  setStatus('');
   els.error.hidden = true;
   els.error.textContent = '';
-  setResultVisible(false);
-  setResultText('');
+  latestResultText = '';
+  els.result.replaceChildren();
+  els.copyBtn.hidden = true;
+  els.resultWrap.hidden = true;
   renderSources([]);
 
   if (clearJobStorage) {
@@ -589,21 +604,25 @@ async function runJob(job) {
   }
 
   if (job.status === 'loading') {
-    setResultVisible(true);
-    els.status.textContent = uiMessage('uiLoading');
-    els.result.replaceChildren();
+    setStatus(uiMessage('uiLoading'));
     latestResultText = '';
+    els.result.replaceChildren();
     els.copyBtn.hidden = true;
+    els.error.hidden = true;
+    els.error.textContent = '';
+    syncResultSection();
     setActionsEnabled(false);
     return;
   }
 
   if (job.status === 'error') {
-    setResultVisible(true);
-    els.status.textContent = '';
-    setResultText('');
+    setStatus('');
+    latestResultText = '';
+    els.result.replaceChildren();
+    els.copyBtn.hidden = true;
     els.error.hidden = false;
     els.error.textContent = job.error || uiMessage('errorApi');
+    syncResultSection();
     setActionsEnabled(true);
     return;
   }
@@ -615,18 +634,24 @@ async function runJob(job) {
 
   const action = resolveAction(job.actionId);
   if (action.needsGrounding && !evidenceIsUsable(job.pageContext, job.evidence)) {
-    setResultVisible(true);
-    els.status.textContent = '';
-    setResultText('');
+    setStatus('');
+    latestResultText = '';
+    els.result.replaceChildren();
+    els.copyBtn.hidden = true;
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoEvidence');
+    syncResultSection();
     setActionsEnabled(true);
     return;
   }
 
-  setResultVisible(true);
-  els.status.textContent = uiMessage('uiLoading');
-  setResultText('');
+  setStatus(uiMessage('uiLoading'));
+  latestResultText = '';
+  els.result.replaceChildren();
+  els.copyBtn.hidden = true;
+  els.error.hidden = true;
+  els.error.textContent = '';
+  syncResultSection();
   setActionsEnabled(false);
 
   const controller = new AbortController();
@@ -644,7 +669,7 @@ async function runJob(job) {
     });
 
     setResultText(full);
-    els.status.textContent = '';
+    setStatus('');
     await chrome.storage.session.set({
       [STORAGE_LAST_RESULT_KEY]: {
         actionId: job.actionId,
@@ -656,10 +681,10 @@ async function runJob(job) {
     if (error?.name === 'AbortError') {
       return;
     }
-    els.status.textContent = '';
-    setResultVisible(true);
+    setStatus('');
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
+    syncResultSection();
   } finally {
     if (activeAbort === controller) {
       activeAbort = null;
@@ -879,14 +904,15 @@ function setActionsEnabled(enabled) {
 async function requestRunAction(actionId) {
   const selectionText = els.selection.textContent.trim();
   if (!selectionText) {
-    setResultVisible(true);
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoSelection');
+    syncResultSection();
     return;
   }
 
   els.error.hidden = true;
   els.error.textContent = '';
+  syncResultSection();
   setActionsEnabled(false);
 
   try {
@@ -899,9 +925,9 @@ async function requestRunAction(actionId) {
       throw new Error(response?.error || uiMessage('errorApi'));
     }
   } catch (error) {
-    setResultVisible(true);
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
+    syncResultSection();
     setActionsEnabled(true);
   }
 }
@@ -991,7 +1017,7 @@ async function init() {
 init().catch((error) => {
   els.idle.hidden = true;
   els.job.hidden = false;
-  setResultVisible(true);
   els.error.hidden = false;
   els.error.textContent = error instanceof Error ? error.message : String(error);
+  syncResultSection();
 });

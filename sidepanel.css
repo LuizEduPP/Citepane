@@ -90,6 +90,10 @@ html[data-theme="dark"] {
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -208,7 +212,7 @@ body {
 }
 
 .settings-overlay[hidden] {
-  display: none;
+  display: none !important;
 }
 
 .settings-backdrop {
@@ -393,7 +397,7 @@ main {
 
 .status {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 500;
 }
 
