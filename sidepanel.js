@@ -17,8 +17,10 @@ const els = {
   idle: document.getElementById('idle'),
   job: document.getElementById('job'),
   actionLabel: document.getElementById('action-label'),
+  selectionWrap: document.getElementById('selection-wrap'),
   selection: document.getElementById('selection'),
   actionsWrap: document.getElementById('actions-wrap'),
+  actionTabs: document.getElementById('action-tabs'),
   actions: document.getElementById('actions'),
   sourcesWrap: document.getElementById('sources-wrap'),
   sources: document.getElementById('sources'),
@@ -28,7 +30,10 @@ const els = {
   error: document.getElementById('error'),
   copyBtn: document.getElementById('copy-btn'),
   settingsBtn: document.getElementById('settings-btn'),
+  settingsOverlay: document.getElementById('settings-overlay'),
   settingsPanel: document.getElementById('settings-panel'),
+  settingsBackdrop: document.getElementById('settings-backdrop'),
+  settingsClose: document.getElementById('settings-close'),
   form: document.getElementById('settings-form'),
   baseUrl: document.getElementById('base-url'),
   model: document.getElementById('model'),
@@ -90,8 +95,31 @@ function applyStaticI18n() {
 }
 
 function setSettingsOpen(open) {
-  els.settingsPanel.hidden = !open;
+  els.settingsOverlay.hidden = !open;
   els.settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  document.body.classList.toggle('settings-open', open);
+  if (open) {
+    const focusTarget = els.baseUrl;
+    if (focusTarget && typeof focusTarget.focus === 'function') {
+      focusTarget.focus();
+    }
+  }
+}
+
+function setSelectionVisible(text) {
+  const trimmed = typeof text === 'string' ? text.trim() : '';
+  els.selection.textContent = trimmed;
+  els.selectionWrap.hidden = !trimmed;
+}
+
+function setActionLabel(text) {
+  const label = typeof text === 'string' ? text.trim() : '';
+  els.actionLabel.textContent = label;
+  els.actionLabel.hidden = !label;
+}
+
+function setResultVisible(visible) {
+  els.resultWrap.hidden = !visible;
 }
 
 function fillLanguageSelects() {
@@ -499,10 +527,10 @@ function setResultText(text) {
   if (!text) {
     els.result.replaceChildren();
     if (els.error.hidden && !els.status.textContent) {
-      els.resultWrap.hidden = true;
+      setResultVisible(false);
     }
   } else {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.result.innerHTML = renderMarkdown(text);
     els.result.querySelectorAll('a[href]').forEach((anchor) => {
       anchor.setAttribute('target', '_blank');
@@ -518,11 +546,11 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
     activeAbort = null;
   }
 
-  els.actionLabel.textContent = '';
+  setActionLabel('');
   els.status.textContent = '';
   els.error.hidden = true;
   els.error.textContent = '';
-  els.resultWrap.hidden = true;
+  setResultVisible(false);
   setResultText('');
   renderSources([]);
 
@@ -544,22 +572,24 @@ async function runJob(job) {
   els.job.hidden = false;
   els.error.hidden = true;
   els.error.textContent = '';
-  els.selection.textContent = selectionText;
+  setSelectionVisible(selectionText);
   setActionsVisible(Boolean(selectionText));
   setActionsEnabled(false);
   renderSources(job.evidence);
 
   try {
     const action = resolveAction(job.actionId);
-    els.actionLabel.textContent = isTranslateActionId(job.actionId)
-      ? `${uiMessage('actionTranslate')} → ${LANGUAGE_BY_CODE[job.targetLanguage].label}`
-      : uiMessage(action.titleKey);
+    setActionLabel(
+      isTranslateActionId(job.actionId)
+        ? `${uiMessage('actionTranslate')} → ${LANGUAGE_BY_CODE[job.targetLanguage].label}`
+        : uiMessage(action.titleKey),
+    );
   } catch {
-    els.actionLabel.textContent = job.actionId || '';
+    setActionLabel(job.actionId || '');
   }
 
   if (job.status === 'loading') {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.status.textContent = uiMessage('uiLoading');
     els.result.replaceChildren();
     latestResultText = '';
@@ -569,7 +599,7 @@ async function runJob(job) {
   }
 
   if (job.status === 'error') {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.status.textContent = '';
     setResultText('');
     els.error.hidden = false;
@@ -585,7 +615,7 @@ async function runJob(job) {
 
   const action = resolveAction(job.actionId);
   if (action.needsGrounding && !evidenceIsUsable(job.pageContext, job.evidence)) {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.status.textContent = '';
     setResultText('');
     els.error.hidden = false;
@@ -594,7 +624,7 @@ async function runJob(job) {
     return;
   }
 
-  els.resultWrap.hidden = false;
+  setResultVisible(true);
   els.status.textContent = uiMessage('uiLoading');
   setResultText('');
   setActionsEnabled(false);
@@ -627,7 +657,7 @@ async function runJob(job) {
       return;
     }
     els.status.textContent = '';
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
   } finally {
@@ -697,7 +727,21 @@ els.form.addEventListener('submit', async (event) => {
 });
 
 els.settingsBtn.addEventListener('click', () => {
-  setSettingsOpen(els.settingsPanel.hidden);
+  setSettingsOpen(els.settingsOverlay.hidden);
+});
+
+els.settingsBackdrop.addEventListener('click', () => {
+  setSettingsOpen(false);
+});
+
+els.settingsClose.addEventListener('click', () => {
+  setSettingsOpen(false);
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !els.settingsOverlay.hidden) {
+    setSettingsOpen(false);
+  }
 });
 
 els.copyBtn.addEventListener('click', async () => {
@@ -712,90 +756,121 @@ els.copyBtn.addEventListener('click', async () => {
   }, 1200);
 });
 
+let activeActionGroupId = null;
+
 function collapseActionGroups() {
-  els.actions.querySelectorAll('details.action-group').forEach((details) => {
-    details.open = false;
+  activeActionGroupId = null;
+  els.actions.hidden = true;
+  els.actions.replaceChildren();
+  els.actionTabs.querySelectorAll('.action-tab').forEach((tab) => {
+    tab.setAttribute('aria-selected', 'false');
   });
 }
 
-function fillActionPicker() {
+function renderActionGroupPanel(group) {
   els.actions.replaceChildren();
+  els.actions.hidden = false;
 
-  for (const group of ACTION_MENU_GROUPS) {
-    const details = document.createElement('details');
-    details.className = 'action-group';
+  if (group.kind === 'translate') {
+    const row = document.createElement('div');
+    row.className = 'action-translate';
 
-    const summary = document.createElement('summary');
-    summary.textContent = uiMessage(group.titleKey);
-    details.append(summary);
+    const select = document.createElement('select');
+    select.id = 'translate-language';
+    select.setAttribute('aria-label', uiMessage('menuGroupTranslate'));
+    for (const language of LANGUAGES) {
+      const option = document.createElement('option');
+      option.value = language.code;
+      option.textContent = language.label;
+      select.append(option);
+    }
 
-    details.addEventListener('toggle', () => {
-      if (!details.open) {
-        return;
-      }
-      els.actions.querySelectorAll('details.action-group').forEach((other) => {
-        if (other !== details) {
-          other.open = false;
-        }
-      });
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-item action-run';
+    button.textContent = uiMessage('menuGroupTranslate');
+    button.addEventListener('click', () => {
+      collapseActionGroups();
+      requestRunAction(`${TRANSLATE_ACTION_PREFIX}${select.value}`);
     });
 
-    if (group.kind === 'translate') {
-      const row = document.createElement('div');
-      row.className = 'action-translate';
+    row.append(select, button);
+    els.actions.append(row);
+    return;
+  }
 
-      const select = document.createElement('select');
-      select.id = 'translate-language';
-      select.setAttribute('aria-label', uiMessage('menuGroupTranslate'));
-      for (const language of LANGUAGES) {
-        const option = document.createElement('option');
-        option.value = language.code;
-        option.textContent = language.label;
-        select.append(option);
-      }
-
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'primary';
-      button.textContent = uiMessage('menuGroupTranslate');
-      button.addEventListener('click', () => {
-        collapseActionGroups();
-        requestRunAction(`${TRANSLATE_ACTION_PREFIX}${select.value}`);
-      });
-
-      row.append(select, button);
-      details.append(row);
-      els.actions.append(details);
+  for (const actionId of group.actionIds) {
+    const action = ACTION_BY_ID[actionId];
+    if (!action) {
       continue;
     }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'action-item';
+    button.dataset.actionId = action.id;
+    button.textContent = uiMessage(action.titleKey);
+    button.addEventListener('click', () => {
+      collapseActionGroups();
+      requestRunAction(action.id);
+    });
+    els.actions.append(button);
+  }
+}
 
-    const chips = document.createElement('div');
-    chips.className = 'action-chips';
-    for (const actionId of group.actionIds) {
-      const action = ACTION_BY_ID[actionId];
-      if (!action) {
-        continue;
-      }
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.dataset.actionId = action.id;
-      button.textContent = uiMessage(action.titleKey);
-      button.addEventListener('click', () => {
-        collapseActionGroups();
-        requestRunAction(action.id);
-      });
-      chips.append(button);
-    }
-    details.append(chips);
-    els.actions.append(details);
+function setActiveActionGroup(groupId) {
+  if (activeActionGroupId === groupId) {
+    collapseActionGroups();
+    return;
+  }
+
+  const group = ACTION_MENU_GROUPS.find((item) => item.id === groupId);
+  if (!group) {
+    collapseActionGroups();
+    return;
+  }
+
+  activeActionGroupId = groupId;
+  els.actionTabs.querySelectorAll('.action-tab').forEach((tab) => {
+    tab.setAttribute('aria-selected', tab.dataset.groupId === groupId ? 'true' : 'false');
+  });
+  renderActionGroupPanel(group);
+}
+
+function fillActionPicker() {
+  const previousGroup = activeActionGroupId;
+  els.actionTabs.replaceChildren();
+  collapseActionGroups();
+
+  for (const group of ACTION_MENU_GROUPS) {
+    const tab = document.createElement('button');
+    tab.type = 'button';
+    tab.className = 'action-tab';
+    tab.setAttribute('role', 'tab');
+    tab.dataset.groupId = group.id;
+    tab.setAttribute('aria-selected', 'false');
+    tab.textContent = uiMessage(group.titleKey);
+    tab.addEventListener('click', () => {
+      setActiveActionGroup(group.id);
+    });
+    els.actionTabs.append(tab);
+  }
+
+  if (previousGroup && ACTION_MENU_GROUPS.some((group) => group.id === previousGroup)) {
+    setActiveActionGroup(previousGroup);
   }
 }
 
 function setActionsVisible(visible) {
   els.actionsWrap.hidden = !visible;
+  if (!visible) {
+    collapseActionGroups();
+  }
 }
 
 function setActionsEnabled(enabled) {
+  els.actionTabs.querySelectorAll('button').forEach((node) => {
+    node.disabled = !enabled;
+  });
   els.actions.querySelectorAll('button, select').forEach((node) => {
     node.disabled = !enabled;
   });
@@ -804,7 +879,7 @@ function setActionsEnabled(enabled) {
 async function requestRunAction(actionId) {
   const selectionText = els.selection.textContent.trim();
   if (!selectionText) {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoSelection');
     return;
@@ -824,7 +899,7 @@ async function requestRunAction(actionId) {
       throw new Error(response?.error || uiMessage('errorApi'));
     }
   } catch (error) {
-    els.resultWrap.hidden = false;
+    setResultVisible(true);
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
     setActionsEnabled(true);
@@ -839,7 +914,8 @@ function applyLiveSelection(text) {
       clearGeneratedOutput();
     }
     lastLiveSelection = '';
-    els.selection.textContent = '';
+    setSelectionVisible('');
+    setActionLabel('');
     setActionsVisible(false);
     els.job.hidden = true;
     els.idle.hidden = false;
@@ -849,7 +925,7 @@ function applyLiveSelection(text) {
   if (trimmed === lastLiveSelection) {
     els.idle.hidden = true;
     els.job.hidden = false;
-    els.selection.textContent = trimmed;
+    setSelectionVisible(trimmed);
     setActionsVisible(true);
     setActionsEnabled(!activeAbort);
     return;
@@ -860,7 +936,7 @@ function applyLiveSelection(text) {
 
   els.idle.hidden = true;
   els.job.hidden = false;
-  els.selection.textContent = trimmed;
+  setSelectionVisible(trimmed);
   setActionsVisible(true);
   setActionsEnabled(true);
 }
@@ -915,6 +991,7 @@ async function init() {
 init().catch((error) => {
   els.idle.hidden = true;
   els.job.hidden = false;
+  setResultVisible(true);
   els.error.hidden = false;
   els.error.textContent = error instanceof Error ? error.message : String(error);
 });
