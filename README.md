@@ -1,6 +1,6 @@
 # Citepane
 
-![Citepane](cover.png)
+![Citepane](https://raw.githubusercontent.com/LuizEduPP/033-citepane/b9a042ed8186a84c14de7eedea6c8b290447fe44/cover.png)
 
 **Highlight text → grounded answers in the Chrome side panel.**
 
