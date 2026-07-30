@@ -83,6 +83,18 @@
   "uiUiLanguageAuto": {
     "message": "Auto (navegador)"
   },
+  "uiTheme": {
+    "message": "Tema"
+  },
+  "uiThemeAuto": {
+    "message": "Auto (sistema)"
+  },
+  "uiThemeLight": {
+    "message": "Claro"
+  },
+  "uiThemeDark": {
+    "message": "Escuro"
+  },
   "uiSave": {
     "message": "Salvar"
   },

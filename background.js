@@ -119,6 +119,22 @@ async function ensureHostPermission(baseUrl) {
     return;
   }
 
+  throw new Error(
+    `Host permission required for ${origin}. Open Settings, then Save or Refresh models to grant access.`,
+  );
+}
+
+async function requestHostPermission(baseUrl) {
+  if (isLocalApiHost(baseUrl)) {
+    return;
+  }
+
+  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
+  const already = await chrome.permissions.contains({ origins: [origin] });
+  if (already) {
+    return;
+  }
+
   const granted = await chrome.permissions.request({ origins: [origin] });
   if (!granted) {
     throw new Error(`Host permission denied for ${origin}`);
@@ -160,7 +176,6 @@ async function handleActionClick(actionId, selectionText, tab) {
     createdAt,
   };
   await writePendingJob(loadingJob);
-  await openSidePanel(tab.id);
 
   try {
     const pageContext = await requestPageContext(tab.id, tab.url);
@@ -224,6 +239,13 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     return;
   }
 
+  // sidePanel.open must run in the same turn as the user gesture — before any await.
+  if (tab?.id) {
+    openSidePanel(tab.id).catch((openError) => {
+      console.error('Failed to open side panel', openError);
+    });
+  }
+
   handleActionClick(String(actionId), info.selectionText || '', tab).catch(async (error) => {
     const message = error instanceof Error ? error.message : String(error);
     await writePendingJob({
@@ -238,19 +260,24 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       error: message,
       createdAt: Date.now(),
     });
-    if (tab?.id) {
-      try {
-        await openSidePanel(tab.id);
-      } catch (openError) {
-        console.error('Failed to open side panel', openError);
-      }
-    }
   });
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'ENSURE_HOST_PERMISSION') {
     ensureHostPermission(message.baseUrl)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === 'REQUEST_HOST_PERMISSION') {
+    requestHostPermission(message.baseUrl)
       .then(() => sendResponse({ ok: true }))
       .catch((error) =>
         sendResponse({

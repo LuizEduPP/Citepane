@@ -33,6 +33,7 @@
 :root {
   --bg: #f4f6f8;
   --bg-elev: #ffffff;
+  --bg-input: #fbfcfd;
   --text: #244464;
   --text-strong: #1c3550;
   --pane: #2c8497;
@@ -41,13 +42,43 @@
   --accent-deep: #1054b4;
   --accent-bright: #28b498;
   --accent-soft: rgba(44, 132, 151, 0.12);
+  --accent-soft-hover: rgba(44, 132, 151, 0.18);
   --accent-grad: linear-gradient(135deg, #1054b4 0%, #2c8497 48%, #28b498 100%);
   --danger: #c0392b;
   --line: rgba(36, 68, 100, 0.12);
   --shadow: 0 1px 2px rgba(36, 68, 100, 0.04), 0 8px 24px rgba(36, 68, 100, 0.06);
+  --glow-teal: rgba(40, 180, 152, 0.1);
+  --glow-blue: rgba(16, 84, 180, 0.08);
+  --focus-ring: rgba(44, 132, 151, 0.35);
+  --button-text: #ffffff;
   --radius: 12px;
   --font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  --bg: #10151c;
+  --bg-elev: #182029;
+  --bg-input: #121820;
+  --text: #c5d4e4;
+  --text-strong: #e8eef5;
+  --pane: #4db8c9;
+  --muted: #8b949e;
+  --accent: #4db8c9;
+  --accent-deep: #6eb6ff;
+  --accent-bright: #3dd4b0;
+  --accent-soft: rgba(77, 184, 201, 0.16);
+  --accent-soft-hover: rgba(77, 184, 201, 0.24);
+  --accent-grad: linear-gradient(135deg, #1a6fd4 0%, #2c8497 48%, #28b498 100%);
+  --danger: #ff7b72;
+  --line: rgba(200, 220, 240, 0.12);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.28);
+  --glow-teal: rgba(61, 212, 176, 0.12);
+  --glow-blue: rgba(26, 111, 212, 0.14);
+  --focus-ring: rgba(77, 184, 201, 0.45);
+  --button-text: #ffffff;
+  color-scheme: dark;
 }
 
 * {
@@ -59,8 +90,8 @@ body {
   margin: 0;
   min-height: 100%;
   background:
-    radial-gradient(900px 420px at 0% -5%, rgba(40, 180, 152, 0.1), transparent 55%),
-    radial-gradient(800px 380px at 100% 0%, rgba(16, 84, 180, 0.08), transparent 50%),
+    radial-gradient(900px 420px at 0% -5%, var(--glow-teal), transparent 55%),
+    radial-gradient(800px 380px at 100% 0%, var(--glow-blue), transparent 50%),
     var(--bg);
   color: var(--text);
   font: 14px/1.5 var(--font);
@@ -216,7 +247,7 @@ button {
   border: 0;
   border-radius: 10px;
   background: var(--accent-grad);
-  color: #ffffff;
+  color: var(--button-text);
   font-weight: 600;
   padding: 9px 14px;
   cursor: pointer;
@@ -235,7 +266,7 @@ button.ghost {
 
 button.ghost:hover {
   filter: none;
-  background: rgba(44, 132, 151, 0.18);
+  background: var(--accent-soft-hover);
 }
 
 button:disabled {
@@ -285,7 +316,7 @@ select {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: #fbfcfd;
+  background: var(--bg-input);
   padding: 9px 11px;
   color: var(--text-strong);
 }
@@ -308,7 +339,7 @@ select {
 
 input:focus,
 select:focus {
-  outline: 2px solid rgba(44, 132, 151, 0.35);
+  outline: 2px solid var(--focus-ring);
   border-color: transparent;
-  background: #ffffff;
+  background: var(--bg-elev);
 }

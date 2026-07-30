@@ -30,8 +30,12 @@ const els = {
   apiKey: document.getElementById('api-key'),
   responseLanguage: document.getElementById('response-language'),
   uiLanguage: document.getElementById('ui-language'),
+  theme: document.getElementById('theme'),
   settingsFeedback: document.getElementById('settings-feedback'),
 };
+
+let themeMediaQuery = null;
+let themeMediaHandler = null;
 
 function browserMessage(key) {
   return chrome.i18n.getMessage(key) || '';
@@ -99,6 +103,49 @@ function fillLanguageSelects() {
     option.value = code;
     option.textContent = language.label;
     els.uiLanguage.append(option);
+  }
+
+  fillThemeSelect();
+}
+
+function fillThemeSelect() {
+  els.theme.replaceChildren();
+  const options = [
+    ['auto', 'uiThemeAuto'],
+    ['light', 'uiThemeLight'],
+    ['dark', 'uiThemeDark'],
+  ];
+  for (const [value, key] of options) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = uiMessage(key);
+    els.theme.append(option);
+  }
+}
+
+function resolveTheme(theme) {
+  if (theme === 'light' || theme === 'dark') {
+    return theme;
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(theme) {
+  const resolved = resolveTheme(theme);
+  document.documentElement.dataset.theme = resolved;
+
+  if (themeMediaQuery && themeMediaHandler) {
+    themeMediaQuery.removeEventListener('change', themeMediaHandler);
+    themeMediaQuery = null;
+    themeMediaHandler = null;
+  }
+
+  if (theme === 'auto') {
+    themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    themeMediaHandler = () => {
+      document.documentElement.dataset.theme = resolveTheme('auto');
+    };
+    themeMediaQuery.addEventListener('change', themeMediaHandler);
   }
 }
 
@@ -187,7 +234,9 @@ function paintSettingsForm(settings) {
   els.apiKey.value = settings.apiKey;
   els.responseLanguage.value = settings.responseLanguage;
   els.uiLanguage.value = settings.uiLanguage;
+  els.theme.value = settings.theme;
   fillModelSelect(settings.model ? [settings.model] : [], settings.model);
+  applyTheme(settings.theme);
 }
 
 async function persistSettings(settings) {
@@ -499,6 +548,10 @@ els.baseUrl.addEventListener('change', () => {
   refreshModelOptions({ quiet: true }).catch(() => {});
 });
 
+els.theme.addEventListener('change', () => {
+  applyTheme(els.theme.value);
+});
+
 els.form.addEventListener('submit', async (event) => {
   event.preventDefault();
   els.settingsFeedback.hidden = true;
@@ -510,12 +563,14 @@ els.form.addEventListener('submit', async (event) => {
       apiKey: els.apiKey.value,
       responseLanguage: els.responseLanguage.value,
       uiLanguage: els.uiLanguage.value,
+      theme: els.theme.value,
     });
 
     await loadMessageCatalog(next.uiLanguage);
     applyStaticI18n();
     fillLanguageSelects();
     paintSettingsForm(next);
+    applyTheme(next.theme);
     if (next.baseUrl.trim()) {
       await refreshModelOptions({ quiet: true });
     }

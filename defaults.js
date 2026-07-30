@@ -11,6 +11,9 @@ const DEFAULT_MODEL = '';
 const DEFAULT_API_KEY = '';
 const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
+const DEFAULT_THEME = 'auto';
+
+const THEME_OPTIONS = Object.freeze(['auto', 'light', 'dark']);
 
 const PAGE_CONTEXT_MAX_CHARS = 2000;
 const SEARCH_RESULT_LIMIT = 5;
@@ -150,6 +153,7 @@ function getDefaultSettings() {
     apiKey: DEFAULT_API_KEY,
     responseLanguage: DEFAULT_RESPONSE_LANGUAGE,
     uiLanguage: DEFAULT_UI_LANGUAGE,
+    theme: DEFAULT_THEME,
   };
 }
 
@@ -202,6 +206,7 @@ function mergeSettings(raw) {
       incoming.uiLanguage === 'auto' || UI_LOCALE_CODES.includes(incoming.uiLanguage)
         ? incoming.uiLanguage
         : defaults.uiLanguage,
+    theme: THEME_OPTIONS.includes(incoming.theme) ? incoming.theme : defaults.theme,
   };
 }
 

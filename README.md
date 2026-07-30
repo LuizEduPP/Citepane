@@ -41,6 +41,7 @@ Grounded actions fail fast if search/page evidence is unusable — the model is 
 | API key | empty (ok for local) |
 | Response language | `auto` (browser UI language) |
 | UI language | `auto` (browser) / `en` `pt-BR` `pt-PT` `es` `fr` `de` |
+| Theme | `auto` (system) / `light` / `dark` |
 
 Remote API hosts require optional host permission (prompted on first use).
 
