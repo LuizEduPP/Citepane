@@ -109,6 +109,15 @@
       </div>
 
       <section id="job" class="job" hidden>
+        <!-- 1. Selection quote -->
+        <section id="selection-wrap" class="panel-section selection-section" hidden>
+          <div class="section-head">
+            <h2 data-i18n="uiSelection">Selection</h2>
+          </div>
+          <pre id="selection" class="selection-box"></pre>
+        </section>
+
+        <!-- 2. Action tabs / sub-options -->
         <section id="actions-wrap" class="panel-section actions-section" hidden>
           <div class="section-head">
             <h2 data-i18n="uiActions">Actions</h2>
@@ -117,14 +126,8 @@
           <div id="actions" class="action-panel" hidden></div>
         </section>
 
-        <section id="selection-wrap" class="panel-section selection-section" hidden>
-          <div class="section-head">
-            <h2 data-i18n="uiSelection">Selection</h2>
-          </div>
-          <pre id="selection" class="selection-box"></pre>
-        </section>
-
-        <section id="result-wrap" class="panel-section result-section" hidden>
+        <!-- 3. Action title + cancel/copy -->
+        <section id="result-chrome" class="panel-section result-chrome" hidden>
           <div class="section-head result-head">
             <div class="result-head-text">
               <h2 id="action-label" hidden></h2>
@@ -159,6 +162,10 @@
               </button>
             </div>
           </div>
+        </section>
+
+        <!-- 4. Answer body -->
+        <section id="result-wrap" class="panel-section result-section" hidden>
           <div id="result" class="result-box markdown-body"></div>
           <p id="error" class="error" hidden></p>
         </section>

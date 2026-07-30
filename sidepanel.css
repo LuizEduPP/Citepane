@@ -401,6 +401,26 @@ main {
   animation: fade-up 0.22s ease;
 }
 
+.job > .selection-section {
+  order: 1;
+}
+
+.job > .actions-section {
+  order: 2;
+}
+
+.job > .result-chrome {
+  order: 3;
+}
+
+.job > .result-section {
+  order: 4;
+}
+
+.job > .sources-section {
+  order: 5;
+}
+
 .panel-section {
   display: flex;
   flex-direction: column;

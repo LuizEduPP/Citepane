@@ -29,6 +29,7 @@ const els = {
   actions: document.getElementById('actions'),
   sourcesWrap: document.getElementById('sources-wrap'),
   sources: document.getElementById('sources'),
+  resultChrome: document.getElementById('result-chrome'),
   resultWrap: document.getElementById('result-wrap'),
   status: document.getElementById('status'),
   cancelBtn: document.getElementById('cancel-btn'),
@@ -147,7 +148,13 @@ function syncResultSection() {
   const hasError = !els.error.hidden && Boolean(els.error.textContent);
   const hasAction = Boolean(els.actionLabel.textContent);
   const canCancel = !els.cancelBtn.hidden;
-  els.resultWrap.hidden = !(hasResult || hasError || hasAction || canCancel);
+  const showChrome = hasAction || canCancel || !els.copyBtn.hidden;
+  const showBody = hasResult || hasError;
+
+  if (els.resultChrome) {
+    els.resultChrome.hidden = !showChrome;
+  }
+  els.resultWrap.hidden = !showBody;
 }
 
 function markLocalCancelled(createdAt) {
@@ -199,6 +206,9 @@ function clearJobOutputUi() {
   latestResultText = '';
   els.result.replaceChildren();
   setCopyAvailable(false);
+  if (els.resultChrome) {
+    els.resultChrome.hidden = true;
+  }
   els.resultWrap.hidden = true;
   renderSources([]);
 }
@@ -1372,6 +1382,9 @@ function resetPanelUi({ cancelCurrent = false } = {}) {
   els.error.textContent = '';
   els.result.replaceChildren();
   setCopyAvailable(false);
+  if (els.resultChrome) {
+    els.resultChrome.hidden = true;
+  }
   els.resultWrap.hidden = true;
   renderSources([]);
   setSelectionVisible('');
