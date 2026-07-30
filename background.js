@@ -25,10 +25,14 @@ async function writePendingJob(job) {
 async function ensureContextMenus() {
   await chrome.contextMenus.removeAll();
 
+  // Only on web pages — never inside the Citepane side panel (chrome-extension://).
+  const documentUrlPatterns = ['http://*/*', 'https://*/*'];
+
   chrome.contextMenus.create({
     id: EXT_PARENT_MENU_ID,
     title: t('menuRoot'),
     contexts: ['selection'],
+    documentUrlPatterns,
   });
 
   const translateAfterId = 'simplify';
@@ -39,6 +43,7 @@ async function ensureContextMenus() {
       parentId: EXT_PARENT_MENU_ID,
       title: t(action.titleKey),
       contexts: ['selection'],
+      documentUrlPatterns,
     });
 
     if (action.id === translateAfterId) {
@@ -47,6 +52,7 @@ async function ensureContextMenus() {
         parentId: EXT_PARENT_MENU_ID,
         title: t('actionTranslate'),
         contexts: ['selection'],
+        documentUrlPatterns,
       });
 
       for (const language of LANGUAGES) {
@@ -55,6 +61,7 @@ async function ensureContextMenus() {
           parentId: TRANSLATE_PARENT_MENU_ID,
           title: language.label,
           contexts: ['selection'],
+          documentUrlPatterns,
         });
       }
     }
@@ -182,15 +189,22 @@ async function handleActionClick(actionId, selectionText, tab) {
     let evidence = [];
 
     if (action.needsGrounding) {
+      let searchError = null;
       try {
         evidence = await searchDuckDuckGo(trimmed);
       } catch (error) {
-        throw new Error(
-          `${t('errorSearchFailed')} ${error instanceof Error ? error.message : String(error)}`,
-        );
+        searchError = error;
+        evidence = [];
       }
 
       if (!evidenceIsUsable(pageContext, evidence)) {
+        if (searchError) {
+          throw new Error(
+            `${t('errorSearchFailed')} ${
+              searchError instanceof Error ? searchError.message : String(searchError)
+            }`,
+          );
+        }
         throw new Error(t('errorNoEvidence'));
       }
     }

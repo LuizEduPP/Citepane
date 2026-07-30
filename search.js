@@ -1,4 +1,6 @@
 const DUCKDUCKGO_HTML_URL = 'https://html.duckduckgo.com/html/';
+const DUCKDUCKGO_LITE_URL = 'https://lite.duckduckgo.com/lite/';
+const DUCKDUCKGO_IA_URL = 'https://api.duckduckgo.com/';
 
 function decodeHtmlEntities(text) {
   return text
@@ -40,6 +42,16 @@ function extractDuckDuckGoUrl(href) {
   throw new Error(`Could not resolve result URL from ${href}`);
 }
 
+function isDuckDuckGoChallenge(html, status) {
+  if (status === 403 || status === 202) {
+    return true;
+  }
+  if (typeof html !== 'string') {
+    return false;
+  }
+  return /anomaly-modal|bots use DuckDuckGo|challenge-form/i.test(html);
+}
+
 function parseDuckDuckGoHtml(html) {
   if (typeof html !== 'string' || html.trim() === '') {
     throw new Error('Empty DuckDuckGo HTML response');
@@ -70,28 +82,202 @@ function parseDuckDuckGoHtml(html) {
   return results;
 }
 
-async function searchDuckDuckGo(selectionText) {
-  const query = buildSearchQuery(selectionText);
-  const body = new URLSearchParams({ q: query, kl: 'wt-wt' });
+function parseDuckDuckGoLiteHtml(html) {
+  if (typeof html !== 'string' || html.trim() === '') {
+    throw new Error('Empty DuckDuckGo lite HTML response');
+  }
 
+  const results = [];
+  const linkRegex =
+    /<a[^>]*rel="nofollow"[^>]*href="([^"]+)"[^>]*class="[^"]*result-link[^"]*"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:<td[^>]*class="[^"]*result-snippet[^"]*"[^>]*>([\s\S]*?)<\/td>)?/gi;
+
+  let match = linkRegex.exec(html);
+  while (match && results.length < SEARCH_RESULT_LIMIT) {
+    const href = decodeHtmlEntities(match[1]);
+    const title = stripTags(match[2]);
+    const snippet = stripTags(match[3] || '');
+    try {
+      const url = extractDuckDuckGoUrl(href);
+      if (title && url) {
+        results.push({ title, url, snippet });
+      }
+    } catch {
+      // skip
+    }
+    match = linkRegex.exec(html);
+  }
+
+  if (results.length === 0) {
+    // Fallback shape used by some lite responses.
+    const altRegex =
+      /<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let alt = altRegex.exec(html);
+    while (alt && results.length < SEARCH_RESULT_LIMIT) {
+      try {
+        const url = extractDuckDuckGoUrl(decodeHtmlEntities(alt[1]));
+        const title = stripTags(alt[2]);
+        if (title && url) {
+          results.push({ title, url, snippet: '' });
+        }
+      } catch {
+        // skip
+      }
+      alt = altRegex.exec(html);
+    }
+  }
+
+  return results;
+}
+
+function pushEvidence(results, title, url, snippet) {
+  if (!title || !url || results.length >= SEARCH_RESULT_LIMIT) {
+    return;
+  }
+  if (results.some((item) => item.url === url)) {
+    return;
+  }
+  results.push({
+    title: String(title).trim(),
+    url: String(url).trim(),
+    snippet: typeof snippet === 'string' ? snippet.trim() : '',
+  });
+}
+
+function collectInstantAnswerTopics(nodes, results) {
+  if (!Array.isArray(nodes)) {
+    return;
+  }
+
+  for (const node of nodes) {
+    if (results.length >= SEARCH_RESULT_LIMIT) {
+      return;
+    }
+    if (!node || typeof node !== 'object') {
+      continue;
+    }
+    if (typeof node.FirstURL === 'string' && typeof node.Text === 'string') {
+      const title = node.Text.split(' - ')[0] || node.Text;
+      pushEvidence(results, title, node.FirstURL, node.Text);
+      continue;
+    }
+    if (Array.isArray(node.Topics)) {
+      collectInstantAnswerTopics(node.Topics, results);
+    }
+  }
+}
+
+function parseInstantAnswer(payload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Invalid Instant Answer payload');
+  }
+
+  const results = [];
+
+  if (payload.AbstractText && payload.AbstractURL) {
+    pushEvidence(
+      results,
+      payload.Heading || payload.AbstractURL,
+      payload.AbstractURL,
+      payload.AbstractText,
+    );
+  }
+
+  if (Array.isArray(payload.Results)) {
+    for (const item of payload.Results) {
+      if (item?.FirstURL && item?.Text) {
+        pushEvidence(results, item.Text.split(' - ')[0] || item.Text, item.FirstURL, item.Text);
+      }
+    }
+  }
+
+  collectInstantAnswerTopics(payload.RelatedTopics, results);
+  return results;
+}
+
+async function searchDuckDuckGoHtml(query) {
+  const body = new URLSearchParams({ q: query, kl: 'wt-wt' });
   const response = await fetch(DUCKDUCKGO_HTML_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
+      Accept: 'text/html',
     },
     body: body.toString(),
   });
 
-  if (!response.ok) {
-    throw new Error(`DuckDuckGo HTTP ${response.status}`);
-  }
-
   const html = await response.text();
-  const results = parseDuckDuckGoHtml(html);
-
-  if (results.length === 0) {
-    throw new Error('DuckDuckGo returned no parseable results');
+  if (!response.ok || isDuckDuckGoChallenge(html, response.status)) {
+    throw new Error(`DuckDuckGo HTML blocked (HTTP ${response.status})`);
   }
 
+  const results = parseDuckDuckGoHtml(html);
+  if (results.length === 0) {
+    throw new Error('DuckDuckGo HTML returned no parseable results');
+  }
   return results;
+}
+
+async function searchDuckDuckGoLite(query) {
+  const url = new URL(DUCKDUCKGO_LITE_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('kl', 'wt-wt');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'text/html' },
+  });
+  const html = await response.text();
+  if (!response.ok || isDuckDuckGoChallenge(html, response.status)) {
+    throw new Error(`DuckDuckGo lite blocked (HTTP ${response.status})`);
+  }
+
+  const results = parseDuckDuckGoLiteHtml(html);
+  if (results.length === 0) {
+    throw new Error('DuckDuckGo lite returned no parseable results');
+  }
+  return results;
+}
+
+async function searchDuckDuckGoInstantAnswer(query) {
+  const url = new URL(DUCKDUCKGO_IA_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('no_redirect', '1');
+  url.searchParams.set('no_html', '1');
+  url.searchParams.set('skip_disambig', '1');
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`DuckDuckGo Instant Answer HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const results = parseInstantAnswer(payload);
+  if (results.length === 0) {
+    throw new Error('DuckDuckGo Instant Answer returned no results');
+  }
+  return results;
+}
+
+async function searchDuckDuckGo(selectionText) {
+  const query = buildSearchQuery(selectionText);
+  const errors = [];
+
+  for (const attempt of [
+    () => searchDuckDuckGoHtml(query),
+    () => searchDuckDuckGoLite(query),
+    () => searchDuckDuckGoInstantAnswer(query),
+  ]) {
+    try {
+      return await attempt();
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  throw new Error(errors.join(' | ') || 'DuckDuckGo search failed');
 }

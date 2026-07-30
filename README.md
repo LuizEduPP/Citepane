@@ -30,7 +30,7 @@ OpenAI-compatible backend (Ollama, LM Studio, cloud). Vanilla MV3, no build.
 | `search.js` | DuckDuckGo HTML search |
 | `sidepanel.*` | Settings, chat completions (stream), copy |
 
-Grounded actions fail fast if search/page evidence is unusable — the model is not called “in the dark”.
+Grounded actions use page context + DuckDuckGo (HTML → lite → Instant Answer). If search is blocked but the page still has usable context, the action continues with page evidence only. They fail fast only when neither source is usable.
 
 ## Settings
 
