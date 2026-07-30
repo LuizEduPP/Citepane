@@ -43,7 +43,7 @@ Grounded actions fail fast if search/page evidence is unusable — the model is 
 | UI language | `auto` (browser) / `en` `pt-BR` `pt-PT` `es` `fr` `de` |
 | Theme | `auto` (system) / `light` / `dark` |
 
-Remote API hosts require optional host permission (prompted on first use).
+Remote API hosts require optional host permission (prompted on **Refresh** models or **Save**).
 
 ## License
 

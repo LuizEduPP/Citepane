@@ -176,8 +176,33 @@ function fillModelSelect(modelIds, selectedModel) {
   }
 }
 
-async function fetchAvailableModels(baseUrl, apiKey) {
-  await ensureApiPermission(baseUrl);
+async function ensureApiPermission(baseUrl, { interactive = false } = {}) {
+  if (isLocalApiHost(baseUrl)) {
+    return;
+  }
+
+  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
+
+  // chrome.permissions.request must run in this page during the user gesture.
+  // Do not await anything else before request(), or Chrome drops the gesture.
+  if (interactive) {
+    const granted = await chrome.permissions.request({ origins: [origin] });
+    if (!granted) {
+      throw new Error(`Host permission denied for ${origin}`);
+    }
+    return;
+  }
+
+  const already = await chrome.permissions.contains({ origins: [origin] });
+  if (!already) {
+    throw new Error(
+      `Host permission required for ${origin}. Click Refresh or Save in Settings to grant access.`,
+    );
+  }
+}
+
+async function fetchAvailableModels(baseUrl, apiKey, { interactive = false } = {}) {
+  await ensureApiPermission(baseUrl, { interactive });
 
   const headers = {};
   if (typeof apiKey === 'string' && apiKey.trim()) {
@@ -197,7 +222,7 @@ async function fetchAvailableModels(baseUrl, apiKey) {
     .filter(Boolean);
 }
 
-async function refreshModelOptions({ quiet = false } = {}) {
+async function refreshModelOptions({ quiet = false, interactive = false } = {}) {
   const baseUrl = els.baseUrl.value.trim();
   const selected = els.model.value || currentSettings.model;
 
@@ -210,9 +235,21 @@ async function refreshModelOptions({ quiet = false } = {}) {
     return;
   }
 
+  try {
+    // Request host access before any other await so the click gesture stays valid.
+    await ensureApiPermission(baseUrl, { interactive });
+  } catch (error) {
+    fillModelSelect([], selected);
+    if (!quiet) {
+      els.settingsFeedback.hidden = false;
+      els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
+    }
+    return;
+  }
+
   els.refreshModels.disabled = true;
   try {
-    const ids = await fetchAvailableModels(baseUrl, els.apiKey.value);
+    const ids = await fetchAvailableModels(baseUrl, els.apiKey.value, { interactive: false });
     fillModelSelect(ids, selected);
     if (!quiet) {
       els.settingsFeedback.hidden = false;
@@ -245,16 +282,6 @@ async function persistSettings(settings) {
   currentSettings = next;
   await chrome.runtime.sendMessage({ type: 'REBUILD_MENUS' }).catch(() => {});
   return next;
-}
-
-async function ensureApiPermission(baseUrl) {
-  const response = await chrome.runtime.sendMessage({
-    type: 'ENSURE_HOST_PERMISSION',
-    baseUrl,
-  });
-  if (!response?.ok) {
-    throw new Error(response?.error || 'Host permission denied');
-  }
 }
 
 function formatEvidenceBlock(pageContext, evidence) {
@@ -540,12 +567,12 @@ async function loadPendingJob() {
   await runJob(job);
 }
 
-els.refreshModels.addEventListener('click', () => {
-  refreshModelOptions({ quiet: false }).catch(() => {});
+els.refreshModels.addEventListener('click', async () => {
+  await refreshModelOptions({ quiet: false, interactive: true });
 });
 
 els.baseUrl.addEventListener('change', () => {
-  refreshModelOptions({ quiet: true }).catch(() => {});
+  refreshModelOptions({ quiet: true, interactive: false }).catch(() => {});
 });
 
 els.theme.addEventListener('change', () => {
@@ -557,6 +584,11 @@ els.form.addEventListener('submit', async (event) => {
   els.settingsFeedback.hidden = true;
 
   try {
+    const baseUrl = els.baseUrl.value.trim();
+    if (baseUrl) {
+      await ensureApiPermission(baseUrl, { interactive: true });
+    }
+
     const next = await persistSettings({
       baseUrl: els.baseUrl.value,
       model: els.model.value,
@@ -572,7 +604,7 @@ els.form.addEventListener('submit', async (event) => {
     paintSettingsForm(next);
     applyTheme(next.theme);
     if (next.baseUrl.trim()) {
-      await refreshModelOptions({ quiet: true });
+      await refreshModelOptions({ quiet: true, interactive: false });
     }
 
     els.settingsFeedback.hidden = false;
