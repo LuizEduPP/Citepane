@@ -33,12 +33,23 @@ function readSelectionExcerpt() {
   return text.replace(/\s+/g, ' ').trim().slice(0, PAGE_CONTEXT_MAX_CHARS);
 }
 
+function readPageBody() {
+  const root =
+    document.querySelector('article') ||
+    document.querySelector('main') ||
+    document.querySelector('[role="main"]') ||
+    document.body;
+  const text = (root?.innerText || '').replace(/\s+/g, ' ').trim();
+  return text.slice(0, PAGE_BODY_MAX_CHARS);
+}
+
 function collectPageContext() {
   return {
     url: location.href,
     title: document.title || '',
     description: readMetaDescription().slice(0, PAGE_CONTEXT_MAX_CHARS),
     excerpt: readSelectionExcerpt(),
+    body: readPageBody(),
   };
 }
 

@@ -43,6 +43,7 @@ const els = {
   uiLanguage: document.getElementById('ui-language'),
   theme: document.getElementById('theme'),
   settingsFeedback: document.getElementById('settings-feedback'),
+  summarizePageBtn: document.getElementById('summarize-page-btn'),
 };
 
 let themeMediaQuery = null;
@@ -125,9 +126,137 @@ function setStatus(text) {
 }
 
 function syncResultSection() {
-  const hasResult = Boolean(latestResultText);
+  const hasGallery = Boolean(els.result.querySelector('.media-gallery'));
+  const hasResult = Boolean(latestResultText) || hasGallery;
   const hasError = !els.error.hidden && Boolean(els.error.textContent);
   els.resultWrap.hidden = !(hasResult || hasError);
+}
+
+function isMediaTooltipAction(action) {
+  return action?.resultMode === 'media-tooltips';
+}
+
+function parseMediaCaptions(text) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return {};
+  }
+
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) {
+    return {};
+  }
+
+  try {
+    const data = JSON.parse(match[0]);
+    if (!Array.isArray(data)) {
+      return {};
+    }
+    const captions = {};
+    for (const row of data) {
+      const index = Number(row?.i ?? row?.index);
+      const caption = typeof row?.caption === 'string' ? row.caption.trim() : '';
+      if (Number.isFinite(index) && index > 0 && caption) {
+        captions[index] = caption;
+      }
+    }
+    return captions;
+  } catch {
+    return {};
+  }
+}
+
+function mediaCopyText(evidence, captionsByIndex = {}) {
+  if (!Array.isArray(evidence)) {
+    return '';
+  }
+  return evidence
+    .map((item, index) => {
+      const caption = captionsByIndex[index + 1] || item.title || '';
+      const url = item.url || item.imageUrl || '';
+      return caption ? `${caption}\n${url}` : url;
+    })
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function renderMediaGallery(evidence, captionsByIndex = {}) {
+  renderSources([]);
+  els.result.replaceChildren();
+
+  if (!Array.isArray(evidence) || evidence.length === 0) {
+    latestResultText = '';
+    els.copyBtn.hidden = true;
+    syncResultSection();
+    return;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'media-gallery';
+
+  evidence.forEach((item, index) => {
+    const caption = captionsByIndex[index + 1] || item.title || item.snippet || '';
+    const href = item.url || item.imageUrl || '#';
+    const thumb = item.thumbnail || item.imageUrl || '';
+
+    const card = document.createElement('a');
+    card.className = `media-card${item.kind === 'video' ? ' media-video' : ' media-image'}`;
+    card.href = href;
+    card.target = '_blank';
+    card.rel = 'noreferrer noopener';
+    card.dataset.index = String(index + 1);
+    if (caption) {
+      card.title = caption;
+      card.setAttribute('aria-label', caption);
+    }
+
+    if (thumb) {
+      const img = document.createElement('img');
+      img.src = thumb;
+      img.alt = caption || '';
+      img.loading = 'lazy';
+      img.referrerPolicy = 'no-referrer';
+      card.append(img);
+    } else {
+      const fallback = document.createElement('span');
+      fallback.className = 'media-fallback';
+      fallback.textContent = item.kind === 'video' ? '▶' : '🖼';
+      card.append(fallback);
+    }
+
+    if (item.kind === 'video') {
+      const badge = document.createElement('span');
+      badge.className = 'media-badge';
+      badge.textContent = '▶';
+      badge.setAttribute('aria-hidden', 'true');
+      card.append(badge);
+    }
+
+    grid.append(card);
+  });
+
+  els.result.append(grid);
+  latestResultText = mediaCopyText(evidence, captionsByIndex);
+  els.copyBtn.hidden = !latestResultText;
+  els.error.hidden = true;
+  els.error.textContent = '';
+  syncResultSection();
+}
+
+function applyMediaCaptions(captionsByIndex) {
+  const cards = els.result.querySelectorAll('.media-card[data-index]');
+  cards.forEach((card) => {
+    const index = Number(card.dataset.index);
+    const caption = captionsByIndex[index];
+    if (!caption) {
+      return;
+    }
+    card.title = caption;
+    card.setAttribute('aria-label', caption);
+    const img = card.querySelector('img');
+    if (img) {
+      img.alt = caption;
+    }
+  });
 }
 
 function setResultVisible(visible) {
@@ -358,6 +487,10 @@ function formatEvidenceBlock(pageContext, evidence) {
     if (pageContext.excerpt) {
       lines.push(`Excerpt: ${pageContext.excerpt}`);
     }
+    if (pageContext.body) {
+      lines.push('PAGE CONTENT');
+      lines.push(pageContext.body);
+    }
   }
 
   if (Array.isArray(evidence) && evidence.length > 0) {
@@ -382,21 +515,43 @@ function formatEvidenceBlock(pageContext, evidence) {
   return lines.join('\n');
 }
 
+function buildUserContent(job, action) {
+  if (action.id === 'summarize-page') {
+    const body = typeof job.pageContext?.body === 'string' ? job.pageContext.body.trim() : '';
+    if (body) {
+      return body;
+    }
+  }
+  return job.selectionText || '';
+}
+
 function buildMessages(job, action) {
   const systemParts = [action.systemPrompt];
 
-  if (!isTranslateActionId(action.id)) {
+  if (!isTranslateActionId(action.id) && action.resultMode !== 'media-tooltips') {
     systemParts.push(MARKDOWN_FORMAT_RULE);
+  }
+  if (!isTranslateActionId(action.id)) {
     systemParts.push(languageInstruction(job.responseLanguage));
   }
 
   if (action.needsGrounding || action.usePageContext) {
-    systemParts.push(formatEvidenceBlock(job.pageContext, job.evidence));
+    // For summarize-page the full body is the user message; keep metadata only here.
+    if (action.id === 'summarize-page' && job.pageContext) {
+      const meta = {
+        url: job.pageContext.url,
+        title: job.pageContext.title,
+        description: job.pageContext.description,
+      };
+      systemParts.push(formatEvidenceBlock(meta, []));
+    } else {
+      systemParts.push(formatEvidenceBlock(job.pageContext, job.evidence));
+    }
   }
 
   return [
     { role: 'system', content: systemParts.join('\n\n') },
-    { role: 'user', content: job.selectionText },
+    { role: 'user', content: buildUserContent(job, action) },
   ];
 }
 
@@ -620,14 +775,10 @@ async function runJob(job) {
   els.job.hidden = false;
   els.error.hidden = true;
   els.error.textContent = '';
-  setSelectionVisible(selectionText);
-  setActionsVisible(Boolean(selectionText));
-  collapseActionGroups();
-  setActionsEnabled(false);
-  renderSources(job.evidence);
 
+  let action = null;
   try {
-    const action = resolveAction(job.actionId);
+    action = resolveAction(job.actionId);
     setActionLabel(
       isTranslateActionId(job.actionId)
         ? `${uiMessage('actionTranslate')} → ${LANGUAGE_BY_CODE[job.targetLanguage].label}`
@@ -637,23 +788,43 @@ async function runJob(job) {
     setActionLabel(job.actionId || '');
   }
 
+  if (!selectionText && action?.id === 'summarize-page' && job.pageContext) {
+    const pageLabel = [job.pageContext.title, job.pageContext.url].filter(Boolean).join('\n');
+    setSelectionVisible(pageLabel || '');
+  } else {
+    setSelectionVisible(selectionText);
+  }
+  setActionsVisible(Boolean(selectionText));
+  collapseActionGroups();
+  setActionsEnabled(false);
+
+  if (action && isMediaTooltipAction(action) && Array.isArray(job.evidence) && job.evidence.length > 0) {
+    renderMediaGallery(job.evidence);
+  } else {
+    renderSources(job.evidence);
+  }
+
   if (job.status === 'loading') {
     setStatus(uiMessage('uiLoading'));
-    latestResultText = '';
-    els.result.replaceChildren();
-    els.copyBtn.hidden = true;
+    if (!(action && isMediaTooltipAction(action))) {
+      latestResultText = '';
+      els.result.replaceChildren();
+      els.copyBtn.hidden = true;
+      syncResultSection();
+    }
     els.error.hidden = true;
     els.error.textContent = '';
-    syncResultSection();
     setActionsEnabled(false);
     return;
   }
 
   if (job.status === 'error') {
     setStatus('');
-    latestResultText = '';
-    els.result.replaceChildren();
-    els.copyBtn.hidden = true;
+    if (!(action && isMediaTooltipAction(action))) {
+      latestResultText = '';
+      els.result.replaceChildren();
+      els.copyBtn.hidden = true;
+    }
     els.error.hidden = false;
     els.error.textContent = job.error || uiMessage('errorApi');
     syncResultSection();
@@ -666,7 +837,7 @@ async function runJob(job) {
     return;
   }
 
-  const action = resolveAction(job.actionId);
+  action = resolveAction(job.actionId);
   if (action.needsGrounding && !evidenceIsUsable(job.pageContext, job.evidence)) {
     setStatus('');
     latestResultText = '';
@@ -680,13 +851,19 @@ async function runJob(job) {
   }
 
   setStatus(uiMessage('uiLoading'));
-  latestResultText = '';
-  els.result.replaceChildren();
-  els.copyBtn.hidden = true;
   els.error.hidden = true;
   els.error.textContent = '';
-  syncResultSection();
   setActionsEnabled(false);
+
+  const mediaMode = isMediaTooltipAction(action);
+  if (mediaMode) {
+    renderMediaGallery(job.evidence);
+  } else {
+    latestResultText = '';
+    els.result.replaceChildren();
+    els.copyBtn.hidden = true;
+    syncResultSection();
+  }
 
   const controller = new AbortController();
   activeAbort = controller;
@@ -697,20 +874,37 @@ async function runJob(job) {
       settings: currentSettings,
       messages,
       signal: controller.signal,
-      onDelta: (delta) => {
-        setResultText(latestResultText + delta);
-      },
+      onDelta: mediaMode
+        ? () => {}
+        : (delta) => {
+            setResultText(latestResultText + delta);
+          },
     });
 
-    setResultText(full);
-    setStatus('');
-    await chrome.storage.session.set({
-      [STORAGE_LAST_RESULT_KEY]: {
-        actionId: job.actionId,
-        text: full,
-        createdAt: Date.now(),
-      },
-    });
+    if (mediaMode) {
+      const captions = parseMediaCaptions(full);
+      applyMediaCaptions(captions);
+      latestResultText = mediaCopyText(job.evidence, captions);
+      els.copyBtn.hidden = !latestResultText;
+      setStatus('');
+      await chrome.storage.session.set({
+        [STORAGE_LAST_RESULT_KEY]: {
+          actionId: job.actionId,
+          text: latestResultText,
+          createdAt: Date.now(),
+        },
+      });
+    } else {
+      setResultText(full);
+      setStatus('');
+      await chrome.storage.session.set({
+        [STORAGE_LAST_RESULT_KEY]: {
+          actionId: job.actionId,
+          text: full,
+          createdAt: Date.now(),
+        },
+      });
+    }
   } catch (error) {
     if (error?.name === 'AbortError') {
       return;
@@ -813,6 +1007,10 @@ els.copyBtn.addEventListener('click', async () => {
   setTimeout(() => {
     els.copyBtn.textContent = previous;
   }, 1200);
+});
+
+els.summarizePageBtn?.addEventListener('click', () => {
+  requestRunAction('summarize-page');
 });
 
 let activeActionGroupId = null;
@@ -929,13 +1127,30 @@ function setActionsEnabled(enabled) {
   els.actions.querySelectorAll('button, select').forEach((node) => {
     node.disabled = !enabled;
   });
+  if (els.summarizePageBtn) {
+    els.summarizePageBtn.disabled = !enabled;
+  }
 }
 
 async function requestRunAction(actionId) {
+  let action;
+  try {
+    action = resolveAction(actionId);
+  } catch (error) {
+    els.error.hidden = false;
+    els.error.textContent = error instanceof Error ? error.message : String(error);
+    els.idle.hidden = true;
+    els.job.hidden = false;
+    syncResultSection();
+    return;
+  }
+
   const selectionText = els.selection.textContent.trim();
-  if (!selectionText) {
+  if (!selectionText && action.requiresSelection !== false) {
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoSelection');
+    els.idle.hidden = true;
+    els.job.hidden = false;
     syncResultSection();
     return;
   }
@@ -944,6 +1159,9 @@ async function requestRunAction(actionId) {
   els.error.textContent = '';
   syncResultSection();
   setActionsEnabled(false);
+  if (els.summarizePageBtn) {
+    els.summarizePageBtn.disabled = true;
+  }
 
   try {
     const response = await chrome.runtime.sendMessage({
@@ -955,10 +1173,15 @@ async function requestRunAction(actionId) {
       throw new Error(response?.error || uiMessage('errorApi'));
     }
   } catch (error) {
+    els.idle.hidden = true;
+    els.job.hidden = false;
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
     syncResultSection();
     setActionsEnabled(true);
+    if (els.summarizePageBtn) {
+      els.summarizePageBtn.disabled = false;
+    }
   }
 }
 

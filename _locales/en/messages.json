@@ -44,6 +44,9 @@
   "actionSummarize": {
     "message": "Summarize"
   },
+  "actionSummarizePage": {
+    "message": "Summarize page"
+  },
   "actionKeyPoints": {
     "message": "Key points"
   },
@@ -136,6 +139,9 @@
   },
   "errorNoSelection": {
     "message": "No text selected."
+  },
+  "errorNoPageContent": {
+    "message": "Could not read usable text from this page."
   },
   "errorNoEvidence": {
     "message": "No usable evidence from page or search. Cannot run a grounded action."

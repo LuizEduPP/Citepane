@@ -308,7 +308,7 @@ async function fetchDuckDuckGoVqd(query) {
 }
 
 function pushMediaEvidence(results, item) {
-  if (!item?.url || results.length >= SEARCH_RESULT_LIMIT) {
+  if (!item?.url || results.length >= MEDIA_SEARCH_RESULT_LIMIT) {
     return;
   }
   if (

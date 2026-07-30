@@ -44,6 +44,9 @@
   "actionSummarize": {
     "message": "Résumer"
   },
+  "actionSummarizePage": {
+    "message": "Résumer la page"
+  },
   "actionKeyPoints": {
     "message": "Points clés"
   },
@@ -136,6 +139,9 @@
   },
   "errorNoSelection": {
     "message": "Aucun texte sélectionné."
+  },
+  "errorNoPageContent": {
+    "message": "Impossible de lire un texte utile sur cette page."
   },
   "errorNoEvidence": {
     "message": "Pas de preuves utilisables (page ou recherche). Action fondée impossible."

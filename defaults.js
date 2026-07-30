@@ -17,7 +17,9 @@ const DEFAULT_THEME = 'auto';
 const THEME_OPTIONS = Object.freeze(['auto', 'light', 'dark']);
 
 const PAGE_CONTEXT_MAX_CHARS = 2000;
+const PAGE_BODY_MAX_CHARS = 12000;
 const SEARCH_RESULT_LIMIT = 5;
+const MEDIA_SEARCH_RESULT_LIMIT = 6;
 const SEARCH_QUERY_MAX_CHARS = 220;
 const SELECTION_PREVIEW_MAX_CHARS = 280;
 const LIVE_SELECTION_MAX_CHARS = 8000;
@@ -89,35 +91,30 @@ const ACTIONS = Object.freeze([
       GROUNDING_RULE,
   }),
   Object.freeze({
-    id: 'find-sources',
-    titleKey: 'actionFindSources',
-    needsGrounding: true,
-    searchKind: 'web',
-    systemPrompt:
-      'List relevant sources for the selected text (title, URL, why it helps). Prefer the provided evidence. ' +
-      GROUNDING_RULE,
-  }),
-  Object.freeze({
     id: 'find-images',
     titleKey: 'actionFindImages',
     needsGrounding: true,
     searchKind: 'images',
+    resultMode: 'media-tooltips',
     systemPrompt:
-      'Find relevant images for the selected text using ONLY the provided IMAGE EVIDENCE. ' +
-      'For each image list a short title, the page URL, and the image URL. ' +
-      'Use Markdown image embeds ![title](imageUrl) when helpful, plus a normal link to the page. ' +
-      GROUNDING_RULE,
+      'Annotate each numbered IMAGE EVIDENCE item for the user selection. ' +
+      'Reply with ONLY a JSON array and nothing else (no markdown, no prose): ' +
+      '[{"i":1,"caption":"short relevance note"},{"i":2,"caption":"..."}]. ' +
+      'Include every evidence index. Each caption max 16 words. ' +
+      'Do not invent images that are not in the evidence.',
   }),
   Object.freeze({
     id: 'find-videos',
     titleKey: 'actionFindVideos',
     needsGrounding: true,
     searchKind: 'videos',
+    resultMode: 'media-tooltips',
     systemPrompt:
-      'Find relevant videos for the selected text using ONLY the provided VIDEO EVIDENCE. ' +
-      'For each video list a short title, the watch URL, and a one-line why it is relevant. ' +
-      'Cite as Markdown links [title](url). ' +
-      GROUNDING_RULE,
+      'Annotate each numbered VIDEO EVIDENCE item for the user selection. ' +
+      'Reply with ONLY a JSON array and nothing else (no markdown, no prose): ' +
+      '[{"i":1,"caption":"short relevance note"},{"i":2,"caption":"..."}]. ' +
+      'Include every evidence index. Each caption max 16 words. ' +
+      'Do not invent videos that are not in the evidence.',
   }),
   Object.freeze({
     id: 'pros-cons',
@@ -138,6 +135,18 @@ const ACTIONS = Object.freeze([
       'Summarize the selected text briefly and accurately. ' +
       'Use PAGE CONTEXT only to disambiguate what the selection refers to. ' +
       'Do not invent facts that are not in the selection or page context.',
+  }),
+  Object.freeze({
+    id: 'summarize-page',
+    titleKey: 'actionSummarizePage',
+    needsGrounding: false,
+    usePageContext: true,
+    requiresSelection: false,
+    systemPrompt:
+      'Summarize the whole web page clearly and accurately based on PAGE CONTENT. ' +
+      'Cover the main topic, key points, and important details. ' +
+      'Do not invent facts that are not in the page content. ' +
+      'Ignore ads, navigation chrome, and unrelated boilerplate when possible.',
   }),
   Object.freeze({
     id: 'key-points',
@@ -186,13 +195,14 @@ const ACTION_MENU_GROUPS = Object.freeze([
   Object.freeze({
     id: 'citepane-group-sources',
     titleKey: 'menuGroupSources',
-    actionIds: Object.freeze(['find-sources', 'find-images', 'find-videos']),
+    actionIds: Object.freeze(['find-images', 'find-videos']),
   }),
   Object.freeze({
     id: 'citepane-group-writing',
     titleKey: 'menuGroupWriting',
     actionIds: Object.freeze([
       'summarize',
+      'summarize-page',
       'key-points',
       'simplify',
       'improve-writing',
@@ -453,8 +463,13 @@ function pageContextHasSignal(pageContext) {
     (pageContext.title && pageContext.title.trim()) ||
       (pageContext.description && pageContext.description.trim()) ||
       (pageContext.excerpt && pageContext.excerpt.trim()) ||
+      (pageContext.body && pageContext.body.trim()) ||
       (pageContext.url && pageContext.url.trim()),
   );
+}
+
+function pageBodyIsUsable(pageContext) {
+  return Boolean(pageContext?.body && String(pageContext.body).trim());
 }
 
 function evidenceIsUsable(pageContext, evidence) {

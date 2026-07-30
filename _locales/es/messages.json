@@ -44,6 +44,9 @@
   "actionSummarize": {
     "message": "Resumir"
   },
+  "actionSummarizePage": {
+    "message": "Resumir página"
+  },
   "actionKeyPoints": {
     "message": "Puntos clave"
   },
@@ -136,6 +139,9 @@
   },
   "errorNoSelection": {
     "message": "No hay texto seleccionado."
+  },
+  "errorNoPageContent": {
+    "message": "No se pudo leer texto útil de esta página."
   },
   "errorNoEvidence": {
     "message": "Sin evidencia útil de la página o la búsqueda. No se puede ejecutar una acción fundamentada."

@@ -71,6 +71,14 @@ async function ensureContextMenus() {
       });
     }
   }
+
+  // Always available for the page, including when text is selected.
+  chrome.contextMenus.create({
+    id: 'citepane-summarize-page',
+    title: `${t('menuRoot')} — ${t('actionSummarizePage')}`,
+    contexts: ['page', 'selection'],
+    documentUrlPatterns,
+  });
 }
 
 function emptyPageContext(tabUrl) {
@@ -79,6 +87,7 @@ function emptyPageContext(tabUrl) {
     title: '',
     description: '',
     excerpt: '',
+    body: '',
   };
 }
 
@@ -102,11 +111,18 @@ async function requestPageContext(tabId, tabUrl) {
           document.querySelector('meta[name="description"]') ||
           document.querySelector('meta[property="og:description"]');
         const selection = window.getSelection()?.toString() || '';
+        const root =
+          document.querySelector('article') ||
+          document.querySelector('main') ||
+          document.querySelector('[role="main"]') ||
+          document.body;
+        const body = (root?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
         return {
           url: location.href,
           title: document.title || '',
           description: meta?.getAttribute('content')?.trim() || '',
           excerpt: selection.replace(/\s+/g, ' ').trim().slice(0, 2000),
+          body,
         };
       },
     });
@@ -166,12 +182,12 @@ async function handleActionClick(actionId, selectionText, tab) {
     throw new Error('Active tab is required');
   }
 
+  const action = resolveAction(actionId);
   const trimmed = typeof selectionText === 'string' ? selectionText.trim() : '';
-  if (!trimmed) {
+  if (!trimmed && action.requiresSelection !== false) {
     throw new Error(t('errorNoSelection'));
   }
 
-  const action = resolveAction(actionId);
   const settings = await readSettings();
   const createdAt = Date.now();
 
@@ -192,6 +208,10 @@ async function handleActionClick(actionId, selectionText, tab) {
   try {
     const pageContext = await requestPageContext(tab.id, tab.url);
     let evidence = [];
+
+    if (action.id === 'summarize-page' && !pageBodyIsUsable(pageContext)) {
+      throw new Error(t('errorNoPageContent'));
+    }
 
     if (action.needsGrounding) {
       let searchError = null;
@@ -262,7 +282,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  const actionId = info.menuItemId;
+  let actionId = String(info.menuItemId);
+  if (actionId === 'citepane-summarize-page') {
+    actionId = 'summarize-page';
+  }
   if (
     actionId === EXT_PARENT_MENU_ID ||
     ACTION_MENU_GROUPS.some((group) => group.id === actionId)
@@ -277,7 +300,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     });
   }
 
-  handleActionClick(String(actionId), info.selectionText || '', tab).catch(async (error) => {
+  handleActionClick(actionId, info.selectionText || '', tab).catch(async (error) => {
     const message = error instanceof Error ? error.message : String(error);
     await writePendingJob({
       actionId: String(actionId),

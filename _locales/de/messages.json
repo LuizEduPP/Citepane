@@ -44,6 +44,9 @@
   "actionSummarize": {
     "message": "Zusammenfassen"
   },
+  "actionSummarizePage": {
+    "message": "Seite zusammenfassen"
+  },
   "actionKeyPoints": {
     "message": "Kernpunkte"
   },
@@ -136,6 +139,9 @@
   },
   "errorNoSelection": {
     "message": "Kein Text ausgewählt."
+  },
+  "errorNoPageContent": {
+    "message": "Auf dieser Seite konnte kein nutzbarer Text gelesen werden."
   },
   "errorNoEvidence": {
     "message": "Keine nutzbare Evidenz von Seite oder Suche. Belegte Aktion nicht möglich."
