@@ -1,5 +1,7 @@
 # Citepane
 
+![Citepane](cover.png)
+
 **Highlight text → grounded answers in the Chrome side panel.**
 
 Citepane is a Chromium MV3 extension. Select text on any page, pick an action, and read the result beside the page—backed by **your** OpenAI-compatible API (Ollama, LM Studio, or cloud). Research actions combine page context with DuckDuckGo evidence; writing and translate work on the selection; images and videos open a quick gallery without calling the LLM.
@@ -48,8 +50,6 @@ Citepane is a Chromium MV3 extension. Select text on any page, pick an action, a
 1. Select text on a page (or run **Summarize page** with no selection).
 2. In the side panel, pick an action—or right-click → **Citepane** → choose an action.
 3. Read the answer in the panel. **Stop** cancels search or inference in progress.
-
-Hover an action tab or button to see a short description of what it does.
 
 ## Architecture
 
