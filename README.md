@@ -39,7 +39,7 @@ Grounded actions fail fast if search/page evidence is unusable — the model is 
 | Base URL | `http://127.0.0.1:11434/v1` |
 | Model | `llama3.2` |
 | API key | empty (ok for local) |
-| Response language | `en` |
+| Response language | `auto` (browser UI language) |
 | UI language | `auto` (browser) / `en` `pt-BR` `pt-PT` `es` `fr` `de` |
 
 Remote API hosts require optional host permission (prompted on first use).

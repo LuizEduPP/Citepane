@@ -9,7 +9,7 @@ const STORAGE_LAST_RESULT_KEY = 'lastResult';
 const DEFAULT_BASE_URL = 'http://127.0.0.1:11434/v1';
 const DEFAULT_MODEL = 'llama3.2';
 const DEFAULT_API_KEY = '';
-const DEFAULT_RESPONSE_LANGUAGE = 'en';
+const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
 
 const PAGE_CONTEXT_MAX_CHARS = 2000;
@@ -194,14 +194,34 @@ function mergeSettings(raw) {
       ? normalizeModel(incoming.model)
       : defaults.model,
     apiKey: typeof incoming.apiKey === 'string' ? incoming.apiKey : defaults.apiKey,
-    responseLanguage: LANGUAGE_BY_CODE[incoming.responseLanguage]
-      ? incoming.responseLanguage
-      : defaults.responseLanguage,
+    responseLanguage:
+      incoming.responseLanguage === 'auto' || LANGUAGE_BY_CODE[incoming.responseLanguage]
+        ? incoming.responseLanguage
+        : defaults.responseLanguage,
     uiLanguage:
       incoming.uiLanguage === 'auto' || UI_LOCALE_CODES.includes(incoming.uiLanguage)
         ? incoming.uiLanguage
         : defaults.uiLanguage,
   };
+}
+
+function matchBrowserLanguage(supportedCodes) {
+  const browser = chrome.i18n.getUILanguage().replace('_', '-');
+  if (supportedCodes.includes(browser)) {
+    return browser;
+  }
+
+  const short = browser.split('-')[0];
+  const regional = supportedCodes.find((code) => code.startsWith(`${short}-`));
+  if (regional) {
+    return regional;
+  }
+
+  if (supportedCodes.includes(short)) {
+    return short;
+  }
+
+  return 'en';
 }
 
 function resolveUiLocale(uiLanguage) {
@@ -212,14 +232,15 @@ function resolveUiLocale(uiLanguage) {
     return uiLanguage;
   }
 
-  const browser = chrome.i18n.getUILanguage().replace('_', '-');
-  if (UI_LOCALE_CODES.includes(browser)) {
-    return browser;
+  return matchBrowserLanguage([...UI_LOCALE_CODES]);
+}
+
+function resolveResponseLanguage(responseLanguage) {
+  if (responseLanguage && responseLanguage !== 'auto') {
+    return normalizeLanguageCode(responseLanguage);
   }
 
-  const short = browser.split('-')[0];
-  const match = UI_LOCALE_CODES.find((code) => code === short || code.startsWith(`${short}-`));
-  return match || 'en';
+  return matchBrowserLanguage(LANGUAGES.map((language) => language.code));
 }
 
 function isTranslateActionId(actionId) {

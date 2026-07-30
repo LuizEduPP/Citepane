@@ -1,38 +1,113 @@
 {
-  "extName": { "message": "Citepane" },
-  "extDescription": { "message": "IA no texto selecionado com respostas embasadas no painel lateral." },
-  "menuRoot": { "message": "Citepane" },
-  "actionExplain": { "message": "Explicar" },
-  "actionDefine": { "message": "Definir" },
-  "actionFactCheck": { "message": "Verificar fatos" },
-  "actionFindSources": { "message": "Buscar fontes" },
-  "actionContext": { "message": "Contexto" },
-  "actionProsCons": { "message": "Prós e contras" },
-  "actionCounterpoints": { "message": "Contrapontos" },
-  "actionSummarize": { "message": "Resumir" },
-  "actionKeyPoints": { "message": "Pontos-chave" },
-  "actionSimplify": { "message": "Simplificar" },
-  "actionTranslate": { "message": "Traduzir" },
-  "actionImproveWriting": { "message": "Melhorar escrita" },
-  "actionImprovePrompt": { "message": "Melhorar prompt" },
-  "uiSettings": { "message": "Configurações" },
-  "uiBaseUrl": { "message": "URL base" },
-  "uiModel": { "message": "Modelo" },
-  "uiApiKey": { "message": "API key (opcional)" },
-  "uiResponseLanguage": { "message": "Idioma da resposta" },
-  "uiUiLanguage": { "message": "Idioma da interface" },
-  "uiUiLanguageAuto": { "message": "Auto (navegador)" },
-  "uiSave": { "message": "Salvar" },
-  "uiCopy": { "message": "Copiar" },
-  "uiCopied": { "message": "Copiado" },
-  "uiSelection": { "message": "Seleção" },
-  "uiSources": { "message": "Fontes" },
-  "uiResult": { "message": "Resultado" },
-  "uiLoading": { "message": "Processando…" },
-  "uiIdle": { "message": "Selecione texto, clique com o botão direito em Citepane e escolha uma ação." },
-  "uiSaved": { "message": "Configurações salvas" },
-  "errorNoSelection": { "message": "Nenhum texto selecionado." },
-  "errorNoEvidence": { "message": "Sem evidência útil da página ou da busca. Não é possível executar ação com embasamento." },
-  "errorSearchFailed": { "message": "A busca na web falhou para uma ação com embasamento." },
-  "errorApi": { "message": "Falha na requisição à API." }
+  "extName": {
+    "message": "Citepane"
+  },
+  "extDescription": {
+    "message": "IA no texto selecionado com respostas embasadas no painel lateral."
+  },
+  "menuRoot": {
+    "message": "Citepane"
+  },
+  "actionExplain": {
+    "message": "Explicar"
+  },
+  "actionDefine": {
+    "message": "Definir"
+  },
+  "actionFactCheck": {
+    "message": "Verificar fatos"
+  },
+  "actionFindSources": {
+    "message": "Buscar fontes"
+  },
+  "actionContext": {
+    "message": "Contexto"
+  },
+  "actionProsCons": {
+    "message": "Prós e contras"
+  },
+  "actionCounterpoints": {
+    "message": "Contrapontos"
+  },
+  "actionSummarize": {
+    "message": "Resumir"
+  },
+  "actionKeyPoints": {
+    "message": "Pontos-chave"
+  },
+  "actionSimplify": {
+    "message": "Simplificar"
+  },
+  "actionTranslate": {
+    "message": "Traduzir"
+  },
+  "actionImproveWriting": {
+    "message": "Melhorar escrita"
+  },
+  "actionImprovePrompt": {
+    "message": "Melhorar prompt"
+  },
+  "uiSettings": {
+    "message": "Configurações"
+  },
+  "uiBaseUrl": {
+    "message": "URL base"
+  },
+  "uiModel": {
+    "message": "Modelo"
+  },
+  "uiApiKey": {
+    "message": "API key (opcional)"
+  },
+  "uiResponseLanguage": {
+    "message": "Idioma da resposta"
+  },
+  "uiUiLanguage": {
+    "message": "Idioma da interface"
+  },
+  "uiUiLanguageAuto": {
+    "message": "Auto (navegador)"
+  },
+  "uiSave": {
+    "message": "Salvar"
+  },
+  "uiCopy": {
+    "message": "Copiar"
+  },
+  "uiCopied": {
+    "message": "Copiado"
+  },
+  "uiSelection": {
+    "message": "Seleção"
+  },
+  "uiSources": {
+    "message": "Fontes"
+  },
+  "uiResult": {
+    "message": "Resultado"
+  },
+  "uiLoading": {
+    "message": "Processando…"
+  },
+  "uiIdle": {
+    "message": "Selecione texto, clique com o botão direito em Citepane e escolha uma ação."
+  },
+  "uiSaved": {
+    "message": "Configurações salvas"
+  },
+  "errorNoSelection": {
+    "message": "Nenhum texto selecionado."
+  },
+  "errorNoEvidence": {
+    "message": "Sem evidência útil da página ou da busca. Não é possível executar ação com embasamento."
+  },
+  "errorSearchFailed": {
+    "message": "A busca na web falhou para uma ação com embasamento."
+  },
+  "errorApi": {
+    "message": "Falha na requisição à API."
+  },
+  "uiResponseLanguageAuto": {
+    "message": "Auto (navegador)"
+  }
 }

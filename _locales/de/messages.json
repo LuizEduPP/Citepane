@@ -1,38 +1,113 @@
 {
-  "extName": { "message": "Citepane" },
-  "extDescription": { "message": "KI für markierten Text mit belegten Antworten im Seitenpanel." },
-  "menuRoot": { "message": "Citepane" },
-  "actionExplain": { "message": "Erklären" },
-  "actionDefine": { "message": "Definieren" },
-  "actionFactCheck": { "message": "Fakten prüfen" },
-  "actionFindSources": { "message": "Quellen finden" },
-  "actionContext": { "message": "Kontext" },
-  "actionProsCons": { "message": "Vor- und Nachteile" },
-  "actionCounterpoints": { "message": "Gegenpunkte" },
-  "actionSummarize": { "message": "Zusammenfassen" },
-  "actionKeyPoints": { "message": "Kernpunkte" },
-  "actionSimplify": { "message": "Vereinfachen" },
-  "actionTranslate": { "message": "Übersetzen" },
-  "actionImproveWriting": { "message": "Schreiben verbessern" },
-  "actionImprovePrompt": { "message": "Prompt verbessern" },
-  "uiSettings": { "message": "Einstellungen" },
-  "uiBaseUrl": { "message": "Basis-URL" },
-  "uiModel": { "message": "Modell" },
-  "uiApiKey": { "message": "API-Schlüssel (optional)" },
-  "uiResponseLanguage": { "message": "Antwortsprache" },
-  "uiUiLanguage": { "message": "Oberflächensprache" },
-  "uiUiLanguageAuto": { "message": "Auto (Browser)" },
-  "uiSave": { "message": "Speichern" },
-  "uiCopy": { "message": "Kopieren" },
-  "uiCopied": { "message": "Kopiert" },
-  "uiSelection": { "message": "Auswahl" },
-  "uiSources": { "message": "Quellen" },
-  "uiResult": { "message": "Ergebnis" },
-  "uiLoading": { "message": "Arbeitet…" },
-  "uiIdle": { "message": "Text markieren, Rechtsklick auf Citepane, Aktion wählen." },
-  "uiSaved": { "message": "Einstellungen gespeichert" },
-  "errorNoSelection": { "message": "Kein Text ausgewählt." },
-  "errorNoEvidence": { "message": "Keine nutzbare Evidenz von Seite oder Suche. Belegte Aktion nicht möglich." },
-  "errorSearchFailed": { "message": "Websuche für belegte Aktion fehlgeschlagen." },
-  "errorApi": { "message": "API-Anfrage fehlgeschlagen." }
+  "extName": {
+    "message": "Citepane"
+  },
+  "extDescription": {
+    "message": "KI für markierten Text mit belegten Antworten im Seitenpanel."
+  },
+  "menuRoot": {
+    "message": "Citepane"
+  },
+  "actionExplain": {
+    "message": "Erklären"
+  },
+  "actionDefine": {
+    "message": "Definieren"
+  },
+  "actionFactCheck": {
+    "message": "Fakten prüfen"
+  },
+  "actionFindSources": {
+    "message": "Quellen finden"
+  },
+  "actionContext": {
+    "message": "Kontext"
+  },
+  "actionProsCons": {
+    "message": "Vor- und Nachteile"
+  },
+  "actionCounterpoints": {
+    "message": "Gegenpunkte"
+  },
+  "actionSummarize": {
+    "message": "Zusammenfassen"
+  },
+  "actionKeyPoints": {
+    "message": "Kernpunkte"
+  },
+  "actionSimplify": {
+    "message": "Vereinfachen"
+  },
+  "actionTranslate": {
+    "message": "Übersetzen"
+  },
+  "actionImproveWriting": {
+    "message": "Schreiben verbessern"
+  },
+  "actionImprovePrompt": {
+    "message": "Prompt verbessern"
+  },
+  "uiSettings": {
+    "message": "Einstellungen"
+  },
+  "uiBaseUrl": {
+    "message": "Basis-URL"
+  },
+  "uiModel": {
+    "message": "Modell"
+  },
+  "uiApiKey": {
+    "message": "API-Schlüssel (optional)"
+  },
+  "uiResponseLanguage": {
+    "message": "Antwortsprache"
+  },
+  "uiUiLanguage": {
+    "message": "Oberflächensprache"
+  },
+  "uiUiLanguageAuto": {
+    "message": "Auto (Browser)"
+  },
+  "uiSave": {
+    "message": "Speichern"
+  },
+  "uiCopy": {
+    "message": "Kopieren"
+  },
+  "uiCopied": {
+    "message": "Kopiert"
+  },
+  "uiSelection": {
+    "message": "Auswahl"
+  },
+  "uiSources": {
+    "message": "Quellen"
+  },
+  "uiResult": {
+    "message": "Ergebnis"
+  },
+  "uiLoading": {
+    "message": "Arbeitet…"
+  },
+  "uiIdle": {
+    "message": "Text markieren, Rechtsklick auf Citepane, Aktion wählen."
+  },
+  "uiSaved": {
+    "message": "Einstellungen gespeichert"
+  },
+  "errorNoSelection": {
+    "message": "Kein Text ausgewählt."
+  },
+  "errorNoEvidence": {
+    "message": "Keine nutzbare Evidenz von Seite oder Suche. Belegte Aktion nicht möglich."
+  },
+  "errorSearchFailed": {
+    "message": "Websuche für belegte Aktion fehlgeschlagen."
+  },
+  "errorApi": {
+    "message": "API-Anfrage fehlgeschlagen."
+  },
+  "uiResponseLanguageAuto": {
+    "message": "Auto (Browser)"
+  }
 }

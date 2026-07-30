@@ -74,6 +74,11 @@ function applyStaticI18n() {
 
 function fillLanguageSelects() {
   els.responseLanguage.replaceChildren();
+  const responseAuto = document.createElement('option');
+  responseAuto.value = 'auto';
+  responseAuto.textContent = uiMessage('uiResponseLanguageAuto');
+  els.responseLanguage.append(responseAuto);
+
   for (const language of LANGUAGES) {
     const option = document.createElement('option');
     option.value = language.code;
