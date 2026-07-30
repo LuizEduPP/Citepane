@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Select text, run AI actions, get grounded answers in the side panel—your model, your endpoint."
+    "message": "Highlight text, run AI actions, and get grounded answers in the side panel—your model, your endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -39,7 +39,7 @@
     "message": "Find videos"
   },
   "actionProsCons": {
-    "message": "Pros and cons"
+    "message": "Pros & cons"
   },
   "actionSummarize": {
     "message": "Summarize"
@@ -66,46 +66,46 @@
     "message": "Settings"
   },
   "uiGithubProfile": {
-    "message": "GitHub profile"
+    "message": "GitHub — {{HANDLE}}"
   },
   "uiBaseUrl": {
-    "message": "Base URL"
+    "message": "API base URL"
   },
   "uiModel": {
     "message": "Model"
   },
   "uiModelPlaceholder": {
-    "message": "Select a model"
+    "message": "Choose a model"
   },
   "uiRefreshModels": {
-    "message": "Refresh"
+    "message": "Load models"
   },
   "uiModelLoadFailed": {
-    "message": "Could not load models from Base URL."
+    "message": "Couldn't load models from that base URL."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Set Base URL first to load models."
+    "message": "Add a base URL first, then load models."
   },
   "uiModelsLoaded": {
-    "message": "Models loaded"
+    "message": "Models ready"
   },
   "uiApiKey": {
     "message": "API key (optional)"
   },
   "uiResponseLanguage": {
-    "message": "Response language"
+    "message": "Answer language"
   },
   "uiUiLanguage": {
-    "message": "UI language"
+    "message": "Interface language"
   },
   "uiUiLanguageAuto": {
-    "message": "Auto (browser)"
+    "message": "Match browser"
   },
   "uiTheme": {
     "message": "Theme"
   },
   "uiThemeAuto": {
-    "message": "Auto (system)"
+    "message": "Match system"
   },
   "uiThemeLight": {
     "message": "Light"
@@ -117,51 +117,51 @@
     "message": "Save"
   },
   "uiCopy": {
-    "message": "Copy"
+    "message": "Copy answer"
   },
   "uiCopied": {
     "message": "Copied"
   },
   "uiSelection": {
-    "message": "Selection"
+    "message": "Selected text"
   },
   "uiSources": {
     "message": "Sources"
   },
   "uiResult": {
-    "message": "Result"
+    "message": "Answer"
   },
   "uiLoading": {
     "message": "Working…"
   },
   "uiCancel": {
-    "message": "Cancel"
+    "message": "Stop"
   },
   "uiIdle": {
-    "message": "Select text on a page to preview it here, then right-click Citepane and pick an action."
+    "message": "Select text on a page—it appears here. Then right-click Citepane and pick an action."
   },
   "uiSaved": {
-    "message": "Settings saved"
+    "message": "Saved"
   },
   "errorNoSelection": {
-    "message": "No text selected."
+    "message": "Select some text first."
   },
   "errorNoPageContent": {
-    "message": "Could not read usable text from this page."
+    "message": "Couldn't read enough text from this page."
   },
   "errorNoEvidence": {
-    "message": "No usable evidence from page or search. Cannot run a grounded action."
+    "message": "No solid evidence from the page or the web—can't ground this action."
   },
   "errorSearchFailed": {
-    "message": "Web search failed for a grounded action."
+    "message": "Web search failed, so this grounded action couldn't run."
   },
   "errorApi": {
-    "message": "API request failed."
+    "message": "The API request failed."
   },
   "uiResponseLanguageAuto": {
-    "message": "Auto (browser)"
+    "message": "Match browser"
   },
   "uiActions": {
-    "message": "What do you want to do?"
+    "message": "Pick an action"
   }
 }

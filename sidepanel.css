@@ -145,6 +145,13 @@ body::before {
   border-bottom: 1px solid var(--line);
 }
 
+.svg-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
 .top-actions {
   display: flex;
   align-items: center;
@@ -162,11 +169,9 @@ a.icon-btn {
   overflow: visible;
 }
 
-.github-btn .github-path {
+.github-path {
   --github-len: 110;
-  fill: url(#github-logo-grad);
   fill-opacity: 0;
-  stroke: url(#github-logo-grad);
   stroke-width: 1.15;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -175,7 +180,7 @@ a.icon-btn {
   stroke-dashoffset: var(--github-len);
 }
 
-.github-btn .github-path.is-drawing {
+.github-path.is-drawing {
   animation:
     github-draw 1.25s cubic-bezier(0.4, 0, 0.2, 1) forwards,
     github-fill 0.4s ease 1s forwards;
@@ -413,11 +418,43 @@ main {
   line-height: 1.1;
 }
 
+.idle-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  background: color-mix(in srgb, var(--bg-elev) 70%, transparent);
+  border: 1px solid var(--line);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.idle-github:hover {
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--logo-teal) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft) 80%, var(--bg-elev));
+}
+
+.idle-github .github-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.idle-github:hover .github-icon {
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--logo-teal) 55%, transparent));
+}
+
 .idle-copy {
   margin: 0;
-  max-width: 18em;
+  max-width: 20em;
   font-size: 0.92rem;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 @keyframes fade-up {
@@ -1127,6 +1164,7 @@ select:focus,
 .action-tab:focus-visible,
 .action-item:focus-visible,
 .icon-btn:focus-visible,
+.idle-github:focus-visible,
 .tool-btn:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--focus-ring);
@@ -1148,15 +1186,15 @@ select:focus {
   .action-tab,
   .action-item,
   .icon-btn,
-  .github-btn .github-icon,
-  .github-btn .github-path,
+  .github-icon,
+  .github-path,
   .media-card,
   .cancel-ring {
     animation: none;
     transition: none;
   }
 
-  .github-btn .github-path {
+  .github-path {
     fill-opacity: 1;
     stroke-opacity: 0;
     stroke-dashoffset: 0;

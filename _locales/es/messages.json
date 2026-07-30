@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Selecciona texto, lanza acciones de IA y obtén respuestas fundamentadas en el panel—tu modelo, tu endpoint."
+    "message": "Selecciona texto, lanza acciones de IA y obtén respuestas fundamentadas en el panel lateral—tu modelo, tu endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -57,7 +57,7 @@
     "message": "Traducir"
   },
   "actionImproveWriting": {
-    "message": "Mejorar escritura"
+    "message": "Mejorar texto"
   },
   "actionImprovePrompt": {
     "message": "Mejorar prompt"
@@ -66,46 +66,46 @@
     "message": "Ajustes"
   },
   "uiGithubProfile": {
-    "message": "Perfil de GitHub"
+    "message": "GitHub — {{HANDLE}}"
   },
   "uiBaseUrl": {
-    "message": "URL base"
+    "message": "URL base de la API"
   },
   "uiModel": {
     "message": "Modelo"
   },
   "uiModelPlaceholder": {
-    "message": "Selecciona un modelo"
+    "message": "Elige un modelo"
   },
   "uiRefreshModels": {
-    "message": "Actualizar"
+    "message": "Cargar modelos"
   },
   "uiModelLoadFailed": {
-    "message": "No se pudieron cargar modelos desde la URL base."
+    "message": "No se pudieron cargar los modelos de esa URL base."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Define la URL base antes de cargar los modelos."
+    "message": "Añade una URL base antes de cargar los modelos."
   },
   "uiModelsLoaded": {
-    "message": "Modelos cargados"
+    "message": "Modelos listos"
   },
   "uiApiKey": {
-    "message": "API key (opcional)"
+    "message": "Clave de API (opcional)"
   },
   "uiResponseLanguage": {
-    "message": "Idioma de respuesta"
+    "message": "Idioma de la respuesta"
   },
   "uiUiLanguage": {
     "message": "Idioma de la interfaz"
   },
   "uiUiLanguageAuto": {
-    "message": "Auto (navegador)"
+    "message": "Igual que el navegador"
   },
   "uiTheme": {
     "message": "Tema"
   },
   "uiThemeAuto": {
-    "message": "Auto (sistema)"
+    "message": "Igual que el sistema"
   },
   "uiThemeLight": {
     "message": "Claro"
@@ -117,51 +117,51 @@
     "message": "Guardar"
   },
   "uiCopy": {
-    "message": "Copiar"
+    "message": "Copiar respuesta"
   },
   "uiCopied": {
     "message": "Copiado"
   },
   "uiSelection": {
-    "message": "Selección"
+    "message": "Texto seleccionado"
   },
   "uiSources": {
     "message": "Fuentes"
   },
   "uiResult": {
-    "message": "Resultado"
+    "message": "Respuesta"
   },
   "uiLoading": {
-    "message": "Procesando…"
+    "message": "Trabajando…"
   },
   "uiCancel": {
-    "message": "Cancelar"
+    "message": "Detener"
   },
   "uiIdle": {
-    "message": "Selecciona texto en la página para verlo aquí; luego clic derecho en Citepane y elige una acción."
+    "message": "Selecciona texto en una página—aparece aquí. Luego haz clic derecho en Citepane y elige una acción."
   },
   "uiSaved": {
-    "message": "Ajustes guardados"
+    "message": "Guardado"
   },
   "errorNoSelection": {
-    "message": "No hay texto seleccionado."
+    "message": "Selecciona texto primero."
   },
   "errorNoPageContent": {
-    "message": "No se pudo leer texto útil de esta página."
+    "message": "No se pudo leer suficiente texto de esta página."
   },
   "errorNoEvidence": {
-    "message": "Sin evidencia útil de la página o la búsqueda. No se puede ejecutar una acción fundamentada."
+    "message": "Sin evidencia sólida de la página o la web—no se puede fundamentar esta acción."
   },
   "errorSearchFailed": {
-    "message": "La búsqueda web falló para una acción fundamentada."
+    "message": "La búsqueda web falló, así que esta acción fundamentada no pudo ejecutarse."
   },
   "errorApi": {
-    "message": "Falló la solicitud a la API."
+    "message": "La solicitud a la API falló."
   },
   "uiResponseLanguageAuto": {
-    "message": "Auto (navegador)"
+    "message": "Igual que el navegador"
   },
   "uiActions": {
-    "message": "¿Qué quieres hacer?"
+    "message": "Elige una acción"
   }
 }

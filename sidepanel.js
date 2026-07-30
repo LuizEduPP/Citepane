@@ -37,7 +37,6 @@ const els = {
   error: document.getElementById('error'),
   copyBtn: document.getElementById('copy-btn'),
   settingsBtn: document.getElementById('settings-btn'),
-  githubLink: document.getElementById('github-link'),
   settingsOverlay: document.getElementById('settings-overlay'),
   settingsBackdrop: document.getElementById('settings-backdrop'),
   settingsClose: document.getElementById('settings-close'),
@@ -59,43 +58,108 @@ function browserMessage(key) {
   return chrome.i18n.getMessage(key) || '';
 }
 
+function expandUiTokens(text) {
+  return String(text).replaceAll('{{HANDLE}}', AUTHOR_GITHUB_HANDLE);
+}
+
 function uiMessage(key) {
   if (messageCatalog?.[key]?.message) {
-    return messageCatalog[key].message;
+    return expandUiTokens(messageCatalog[key].message);
   }
   const fallback = browserMessage(key);
   if (!fallback) {
     throw new Error(`Missing UI string: ${key}`);
   }
-  return fallback;
+  return expandUiTokens(fallback);
 }
 
-function setupGithubIcon() {
-  const path = els.githubLink?.querySelector('.github-path');
-  if (!path) {
-    return;
-  }
+function formatCaught(error) {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  const len = Math.ceil(path.getTotalLength());
-  path.style.setProperty('--github-len', String(len));
+function setPanelError(message) {
+  const text = typeof message === 'string' ? message.trim() : '';
+  els.error.textContent = text;
+  els.error.hidden = !text;
+  syncResultSection();
+}
 
-  const play = () => {
-    path.classList.remove('is-drawing');
-    // Force restart so hover can replay the stroke draw.
-    void path.getBoundingClientRect();
-    path.classList.add('is-drawing');
-  };
+function clearPanelError() {
+  setPanelError('');
+}
 
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    path.style.fillOpacity = '1';
-    path.style.strokeOpacity = '0';
-    path.style.strokeDashoffset = '0';
-    return;
-  }
+function setSettingsFeedback(message) {
+  const text = typeof message === 'string' ? message.trim() : '';
+  els.settingsFeedback.textContent = text;
+  els.settingsFeedback.hidden = !text;
+}
 
-  play();
-  els.githubLink.addEventListener('mouseenter', play);
-  els.githubLink.addEventListener('focus', play);
+function paintBrandTitles() {
+  document.querySelectorAll('[data-brand-title]').forEach((node) => {
+    const cite = document.createElement('span');
+    cite.className = 'brand-cite';
+    cite.textContent = BRAND_CITE;
+    const pane = document.createElement('span');
+    pane.className = 'brand-pane';
+    pane.textContent = BRAND_PANE;
+    node.replaceChildren(cite, pane);
+  });
+}
+
+function createGithubMark(size) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'github-icon');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+
+  const path = document.createElementNS(ns, 'path');
+  path.setAttribute('class', 'github-path');
+  path.setAttribute('fill', `url(#${GITHUB_GRAD_ID})`);
+  path.setAttribute('stroke', `url(#${GITHUB_GRAD_ID})`);
+  path.setAttribute('d', GITHUB_MARK_PATH);
+  svg.append(path);
+  return { svg, path };
+}
+
+function mountGithubLinks() {
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll('[data-github-link]').forEach((host) => {
+    const size = Number(host.getAttribute('data-github-size')) || 18;
+    const { svg, path } = createGithubMark(size);
+    const parts = [svg];
+    if (host.hasAttribute('data-github-show-handle')) {
+      const label = document.createElement('span');
+      label.textContent = AUTHOR_GITHUB_HANDLE;
+      parts.push(label);
+    }
+    host.replaceChildren(...parts);
+    host.href = AUTHOR_GITHUB_URL;
+
+    const len = Math.ceil(path.getTotalLength());
+    path.style.setProperty('--github-len', String(len));
+
+    if (reduceMotion) {
+      path.style.fillOpacity = '1';
+      path.style.strokeOpacity = '0';
+      path.style.strokeDashoffset = '0';
+      return;
+    }
+
+    const play = () => {
+      path.classList.remove('is-drawing');
+      void path.getBoundingClientRect();
+      path.classList.add('is-drawing');
+    };
+
+    play();
+    host.addEventListener('mouseenter', play);
+    host.addEventListener('focus', play);
+  });
 }
 
 async function loadMessageCatalog(uiLanguage) {
@@ -230,8 +294,7 @@ function clearJobOutputUi() {
   setStatus('');
   setCancelAvailable(false);
   setInferenceBusy(false);
-  els.error.hidden = true;
-  els.error.textContent = '';
+  clearPanelError();
   latestResultText = '';
   els.result.replaceChildren();
   setCopyAvailable(false);
@@ -363,55 +426,53 @@ function renderMediaGallery(evidence) {
   });
 
   els.result.append(grid);
-  els.error.hidden = true;
-  els.error.textContent = '';
-  syncResultSection();
+  clearPanelError();
+}
+
+function appendSelectOptions(select, items, { autoKey } = {}) {
+  select.replaceChildren();
+  if (autoKey) {
+    const auto = document.createElement('option');
+    auto.value = 'auto';
+    auto.textContent = uiMessage(autoKey);
+    select.append(auto);
+  }
+  for (const { value, label } of items) {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.append(option);
+  }
 }
 
 function fillLanguageSelects() {
-  els.responseLanguage.replaceChildren();
-  const responseAuto = document.createElement('option');
-  responseAuto.value = 'auto';
-  responseAuto.textContent = uiMessage('uiResponseLanguageAuto');
-  els.responseLanguage.append(responseAuto);
+  appendSelectOptions(
+    els.responseLanguage,
+    LANGUAGES.map((language) => ({ value: language.code, label: language.label })),
+    { autoKey: 'uiResponseLanguageAuto' },
+  );
 
-  for (const language of LANGUAGES) {
-    const option = document.createElement('option');
-    option.value = language.code;
-    option.textContent = language.label;
-    els.responseLanguage.append(option);
-  }
-
-  els.uiLanguage.replaceChildren();
-  const auto = document.createElement('option');
-  auto.value = 'auto';
-  auto.textContent = uiMessage('uiUiLanguageAuto');
-  els.uiLanguage.append(auto);
-
-  for (const code of UI_LOCALE_CODES) {
-    const language = LANGUAGE_BY_CODE[code];
-    const option = document.createElement('option');
-    option.value = code;
-    option.textContent = language.label;
-    els.uiLanguage.append(option);
-  }
+  appendSelectOptions(
+    els.uiLanguage,
+    UI_LOCALE_CODES.map((code) => ({
+      value: code,
+      label: LANGUAGE_BY_CODE[code].label,
+    })),
+    { autoKey: 'uiUiLanguageAuto' },
+  );
 
   fillThemeSelect();
 }
 
 function fillThemeSelect() {
-  els.theme.replaceChildren();
-  const options = [
-    ['auto', 'uiThemeAuto'],
-    ['light', 'uiThemeLight'],
-    ['dark', 'uiThemeDark'],
-  ];
-  for (const [value, key] of options) {
-    const option = document.createElement('option');
-    option.value = value;
-    option.textContent = uiMessage(key);
-    els.theme.append(option);
-  }
+  appendSelectOptions(
+    els.theme,
+    [
+      { value: 'auto', label: uiMessage('uiThemeAuto') },
+      { value: 'light', label: uiMessage('uiThemeLight') },
+      { value: 'dark', label: uiMessage('uiThemeDark') },
+    ],
+  );
 }
 
 function resolveTheme(theme) {
@@ -495,8 +556,7 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
   if (!baseUrl) {
     fillModelSelect([], selected);
     if (!quiet) {
-      els.settingsFeedback.hidden = false;
-      els.settingsFeedback.textContent = uiMessage('uiModelNeedBaseUrl');
+      setSettingsFeedback(uiMessage('uiModelNeedBaseUrl'));
     }
     return;
   }
@@ -507,8 +567,7 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
   } catch (error) {
     fillModelSelect([], selected);
     if (!quiet) {
-      els.settingsFeedback.hidden = false;
-      els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
+      setSettingsFeedback(formatCaught(error));
     }
     return;
   }
@@ -518,14 +577,12 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
     const ids = await fetchAvailableModels(baseUrl, els.apiKey.value, { interactive: false });
     fillModelSelect(ids, selected);
     if (!quiet) {
-      els.settingsFeedback.hidden = false;
-      els.settingsFeedback.textContent = uiMessage('uiModelsLoaded');
+      setSettingsFeedback(uiMessage('uiModelsLoaded'));
     }
   } catch (error) {
     fillModelSelect([], selected);
     if (!quiet) {
-      els.settingsFeedback.hidden = false;
-      els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
+      setSettingsFeedback(formatCaught(error));
     }
   } finally {
     els.refreshModels.disabled = false;
@@ -874,8 +931,7 @@ async function runJob(job) {
 
   els.idle.hidden = true;
   els.job.hidden = false;
-  els.error.hidden = true;
-  els.error.textContent = '';
+  clearPanelError();
 
   let action = null;
   try {
@@ -925,9 +981,7 @@ async function runJob(job) {
       latestResultText = '';
       els.result.replaceChildren();
     }
-    els.error.hidden = false;
-    els.error.textContent = job.error || uiMessage('errorApi');
-    syncResultSection();
+    setPanelError(job.error || uiMessage('errorApi'));
     setInferenceBusy(false);
     return;
   }
@@ -944,9 +998,7 @@ async function runJob(job) {
     els.result.replaceChildren();
     setCopyAvailable(false);
     setCancelAvailable(false);
-    els.error.hidden = false;
-    els.error.textContent = uiMessage('errorNoEvidence');
-    syncResultSection();
+    setPanelError(uiMessage('errorNoEvidence'));
     setInferenceBusy(false);
     return;
   }
@@ -962,8 +1014,7 @@ async function runJob(job) {
   }
 
   setStatus(uiMessage('uiLoading'));
-  els.error.hidden = true;
-  els.error.textContent = '';
+  clearPanelError();
   setCopyAvailable(false);
   setCancelAvailable(true);
   setInferenceBusy(true);
@@ -1009,9 +1060,7 @@ async function runJob(job) {
     }
     setStatus('');
     setCopyAvailable(false);
-    els.error.hidden = false;
-    els.error.textContent = error instanceof Error ? error.message : String(error);
-    syncResultSection();
+    setPanelError(formatCaught(error));
   } finally {
     if (activeAbort === controller) {
       activeAbort = null;
@@ -1046,7 +1095,7 @@ els.theme.addEventListener('change', () => {
 
 els.form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  els.settingsFeedback.hidden = true;
+  setSettingsFeedback('');
 
   try {
     const baseUrl = els.baseUrl.value.trim();
@@ -1072,12 +1121,10 @@ els.form.addEventListener('submit', async (event) => {
       await refreshModelOptions({ quiet: true, interactive: false });
     }
 
-    els.settingsFeedback.hidden = true;
-    els.settingsFeedback.textContent = '';
+    setSettingsFeedback('');
     setSettingsOpen(false);
   } catch (error) {
-    els.settingsFeedback.hidden = false;
-    els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
+    setSettingsFeedback(formatCaught(error));
   }
 });
 
@@ -1248,27 +1295,21 @@ async function requestRunAction(actionId) {
   try {
     action = resolveAction(actionId);
   } catch (error) {
-    els.error.hidden = false;
-    els.error.textContent = error instanceof Error ? error.message : String(error);
+    setPanelError(formatCaught(error));
     els.idle.hidden = true;
     els.job.hidden = false;
-    syncResultSection();
     return;
   }
 
   const selectionText = els.selection.textContent.trim();
   if (!selectionText && action.requiresSelection !== false) {
-    els.error.hidden = false;
-    els.error.textContent = uiMessage('errorNoSelection');
+    setPanelError(uiMessage('errorNoSelection'));
     els.idle.hidden = true;
     els.job.hidden = false;
-    syncResultSection();
     return;
   }
 
-  els.error.hidden = true;
-  els.error.textContent = '';
-  syncResultSection();
+  clearPanelError();
   setInferenceBusy(true);
 
   try {
@@ -1283,9 +1324,7 @@ async function requestRunAction(actionId) {
   } catch (error) {
     els.idle.hidden = true;
     els.job.hidden = false;
-    els.error.hidden = false;
-    els.error.textContent = error instanceof Error ? error.message : String(error);
-    syncResultSection();
+    setPanelError(formatCaught(error));
     setInferenceBusy(false);
   }
 }
@@ -1338,8 +1377,7 @@ function resetPanelUi({ cancelCurrent = false } = {}) {
   setActionLabel('');
   setStatus('');
   setCancelAvailable(false);
-  els.error.hidden = true;
-  els.error.textContent = '';
+  clearPanelError();
   els.result.replaceChildren();
   setCopyAvailable(false);
   if (els.resultChrome) {
@@ -1421,7 +1459,8 @@ async function init() {
   applyStaticI18n();
   fillLanguageSelects();
   paintSettingsForm(currentSettings);
-  setupGithubIcon();
+  paintBrandTitles();
+  mountGithubLinks();
   if (currentSettings.baseUrl.trim()) {
     await refreshModelOptions({ quiet: true });
   }
@@ -1456,7 +1495,5 @@ async function init() {
 init().catch((error) => {
   els.idle.hidden = true;
   els.job.hidden = false;
-  els.error.hidden = false;
-  els.error.textContent = error instanceof Error ? error.message : String(error);
-  syncResultSection();
+  setPanelError(formatCaught(error));
 });

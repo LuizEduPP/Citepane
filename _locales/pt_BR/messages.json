@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Selecione texto, rode ações de IA e veja respostas embasadas no painel—seu modelo, seu endpoint."
+    "message": "Selecione texto, rode ações de IA e veja respostas embasadas no painel lateral—seu modelo, seu endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -27,7 +27,7 @@
     "message": "Definir"
   },
   "actionFactCheck": {
-    "message": "Verificar fatos"
+    "message": "Checar fatos"
   },
   "actionFindSources": {
     "message": "Buscar fontes"
@@ -57,7 +57,7 @@
     "message": "Traduzir"
   },
   "actionImproveWriting": {
-    "message": "Melhorar escrita"
+    "message": "Melhorar texto"
   },
   "actionImprovePrompt": {
     "message": "Melhorar prompt"
@@ -66,31 +66,31 @@
     "message": "Configurações"
   },
   "uiGithubProfile": {
-    "message": "Perfil no GitHub"
+    "message": "GitHub — {{HANDLE}}"
   },
   "uiBaseUrl": {
-    "message": "URL base"
+    "message": "URL base da API"
   },
   "uiModel": {
     "message": "Modelo"
   },
   "uiModelPlaceholder": {
-    "message": "Selecione um modelo"
+    "message": "Escolha um modelo"
   },
   "uiRefreshModels": {
-    "message": "Atualizar"
+    "message": "Carregar modelos"
   },
   "uiModelLoadFailed": {
-    "message": "Não foi possível carregar modelos da URL base."
+    "message": "Não foi possível carregar os modelos dessa URL base."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Defina a URL base antes de carregar os modelos."
+    "message": "Informe a URL base antes de carregar os modelos."
   },
   "uiModelsLoaded": {
-    "message": "Modelos carregados"
+    "message": "Modelos prontos"
   },
   "uiApiKey": {
-    "message": "API key (opcional)"
+    "message": "Chave da API (opcional)"
   },
   "uiResponseLanguage": {
     "message": "Idioma da resposta"
@@ -99,13 +99,13 @@
     "message": "Idioma da interface"
   },
   "uiUiLanguageAuto": {
-    "message": "Auto (navegador)"
+    "message": "Igual ao navegador"
   },
   "uiTheme": {
     "message": "Tema"
   },
   "uiThemeAuto": {
-    "message": "Auto (sistema)"
+    "message": "Igual ao sistema"
   },
   "uiThemeLight": {
     "message": "Claro"
@@ -117,51 +117,51 @@
     "message": "Salvar"
   },
   "uiCopy": {
-    "message": "Copiar"
+    "message": "Copiar resposta"
   },
   "uiCopied": {
     "message": "Copiado"
   },
   "uiSelection": {
-    "message": "Seleção"
+    "message": "Texto selecionado"
   },
   "uiSources": {
     "message": "Fontes"
   },
   "uiResult": {
-    "message": "Resultado"
+    "message": "Resposta"
   },
   "uiLoading": {
-    "message": "Processando…"
+    "message": "Trabalhando…"
   },
   "uiCancel": {
-    "message": "Cancelar"
+    "message": "Parar"
   },
   "uiIdle": {
-    "message": "Selecione texto na página para ver aqui; depois clique com o botão direito em Citepane e escolha uma ação."
+    "message": "Selecione um texto na página—ele aparece aqui. Depois clique com o botão direito em Citepane e escolha uma ação."
   },
   "uiSaved": {
-    "message": "Configurações salvas"
+    "message": "Salvo"
   },
   "errorNoSelection": {
-    "message": "Nenhum texto selecionado."
+    "message": "Selecione um texto primeiro."
   },
   "errorNoPageContent": {
-    "message": "Não foi possível ler texto útil desta página."
+    "message": "Não deu para ler texto suficiente nesta página."
   },
   "errorNoEvidence": {
-    "message": "Sem evidência útil da página ou da busca. Não é possível executar ação com embasamento."
+    "message": "Sem evidência sólida da página ou da web—não dá para embasar esta ação."
   },
   "errorSearchFailed": {
-    "message": "A busca na web falhou para uma ação com embasamento."
+    "message": "A busca na web falhou, então esta ação embasada não pôde rodar."
   },
   "errorApi": {
-    "message": "Falha na requisição à API."
+    "message": "A requisição à API falhou."
   },
   "uiResponseLanguageAuto": {
-    "message": "Auto (navegador)"
+    "message": "Igual ao navegador"
   },
   "uiActions": {
-    "message": "O que você quer fazer?"
+    "message": "Escolha uma ação"
   }
 }

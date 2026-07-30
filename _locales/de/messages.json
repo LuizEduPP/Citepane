@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Text markieren, KI-Aktionen starten, belegte Antworten im Seitenpanel—dein Modell, dein Endpoint."
+    "message": "Text markieren, KI-Aktionen starten und belegte Antworten im Seitenpanel erhalten—dein Modell, dein Endpoint."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -57,7 +57,7 @@
     "message": "Übersetzen"
   },
   "actionImproveWriting": {
-    "message": "Schreiben verbessern"
+    "message": "Text verbessern"
   },
   "actionImprovePrompt": {
     "message": "Prompt verbessern"
@@ -66,28 +66,28 @@
     "message": "Einstellungen"
   },
   "uiGithubProfile": {
-    "message": "GitHub-Profil"
+    "message": "GitHub — {{HANDLE}}"
   },
   "uiBaseUrl": {
-    "message": "Basis-URL"
+    "message": "API-Basis-URL"
   },
   "uiModel": {
     "message": "Modell"
   },
   "uiModelPlaceholder": {
-    "message": "Modell auswählen"
+    "message": "Modell wählen"
   },
   "uiRefreshModels": {
-    "message": "Aktualisieren"
+    "message": "Modelle laden"
   },
   "uiModelLoadFailed": {
-    "message": "Modelle konnten von der Basis-URL nicht geladen werden."
+    "message": "Modelle von dieser Basis-URL konnten nicht geladen werden."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Zuerst Basis-URL festlegen, um Modelle zu laden."
+    "message": "Zuerst eine Basis-URL angeben, dann Modelle laden."
   },
   "uiModelsLoaded": {
-    "message": "Modelle geladen"
+    "message": "Modelle bereit"
   },
   "uiApiKey": {
     "message": "API-Schlüssel (optional)"
@@ -99,13 +99,13 @@
     "message": "Oberflächensprache"
   },
   "uiUiLanguageAuto": {
-    "message": "Auto (Browser)"
+    "message": "Wie Browser"
   },
   "uiTheme": {
-    "message": "Thema"
+    "message": "Design"
   },
   "uiThemeAuto": {
-    "message": "Auto (System)"
+    "message": "Wie System"
   },
   "uiThemeLight": {
     "message": "Hell"
@@ -117,51 +117,51 @@
     "message": "Speichern"
   },
   "uiCopy": {
-    "message": "Kopieren"
+    "message": "Antwort kopieren"
   },
   "uiCopied": {
     "message": "Kopiert"
   },
   "uiSelection": {
-    "message": "Auswahl"
+    "message": "Ausgewählter Text"
   },
   "uiSources": {
     "message": "Quellen"
   },
   "uiResult": {
-    "message": "Ergebnis"
+    "message": "Antwort"
   },
   "uiLoading": {
     "message": "Arbeitet…"
   },
   "uiCancel": {
-    "message": "Abbrechen"
+    "message": "Stoppen"
   },
   "uiIdle": {
-    "message": "Text auf einer Seite markieren, um ihn hier zu sehen; dann Rechtsklick auf Citepane und Aktion wählen."
+    "message": "Text auf einer Seite markieren—er erscheint hier. Dann Rechtsklick auf Citepane und eine Aktion wählen."
   },
   "uiSaved": {
-    "message": "Einstellungen gespeichert"
+    "message": "Gespeichert"
   },
   "errorNoSelection": {
-    "message": "Kein Text ausgewählt."
+    "message": "Zuerst Text markieren."
   },
   "errorNoPageContent": {
-    "message": "Auf dieser Seite konnte kein nutzbarer Text gelesen werden."
+    "message": "Auf dieser Seite konnte nicht genug Text gelesen werden."
   },
   "errorNoEvidence": {
-    "message": "Keine nutzbare Evidenz von Seite oder Suche. Belegte Aktion nicht möglich."
+    "message": "Keine solide Evidenz von Seite oder Web—diese Aktion lässt sich nicht belegen."
   },
   "errorSearchFailed": {
-    "message": "Websuche für belegte Aktion fehlgeschlagen."
+    "message": "Websuche fehlgeschlagen; diese belegte Aktion konnte nicht laufen."
   },
   "errorApi": {
-    "message": "API-Anfrage fehlgeschlagen."
+    "message": "Die API-Anfrage ist fehlgeschlagen."
   },
   "uiResponseLanguageAuto": {
-    "message": "Auto (Browser)"
+    "message": "Wie Browser"
   },
   "uiActions": {
-    "message": "Was möchten Sie tun?"
+    "message": "Aktion wählen"
   }
 }
