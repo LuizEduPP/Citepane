@@ -29,6 +29,12 @@
   "actionFindSources": {
     "message": "Quellen finden"
   },
+  "actionFindImages": {
+    "message": "Bilder finden"
+  },
+  "actionFindVideos": {
+    "message": "Videos finden"
+  },
   "actionProsCons": {
     "message": "Vor- und Nachteile"
   },

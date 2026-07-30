@@ -29,6 +29,12 @@
   "actionFindSources": {
     "message": "Buscar fontes"
   },
+  "actionFindImages": {
+    "message": "Buscar imagens"
+  },
+  "actionFindVideos": {
+    "message": "Buscar vídeos"
+  },
   "actionProsCons": {
     "message": "Prós e contras"
   },

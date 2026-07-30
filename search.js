@@ -281,3 +281,149 @@ async function searchDuckDuckGo(selectionText) {
 
   throw new Error(errors.join(' | ') || 'DuckDuckGo search failed');
 }
+
+async function fetchDuckDuckGoVqd(query) {
+  const url = new URL('https://duckduckgo.com/');
+  url.searchParams.set('q', query);
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'text/html' },
+  });
+  const html = await response.text();
+  if (!response.ok || isDuckDuckGoChallenge(html, response.status)) {
+    throw new Error(`DuckDuckGo vqd blocked (HTTP ${response.status})`);
+  }
+
+  const patterns = [
+    /vqd=["']([^"']+)["']/,
+    /"vqd"\s*:\s*"([^"]+)"/,
+    /vqd=([^&"']+)/,
+  ];
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      return match[1];
+    }
+  }
+  throw new Error('DuckDuckGo vqd token not found');
+}
+
+function pushMediaEvidence(results, item) {
+  if (!item?.url || results.length >= SEARCH_RESULT_LIMIT) {
+    return;
+  }
+  if (
+    results.some(
+      (entry) =>
+        entry.url === item.url || (item.imageUrl && entry.imageUrl === item.imageUrl),
+    )
+  ) {
+    return;
+  }
+  results.push(item);
+}
+
+async function searchDuckDuckGoImages(selectionText) {
+  const query = buildSearchQuery(selectionText);
+  const vqd = await fetchDuckDuckGoVqd(query);
+  const url = new URL('https://duckduckgo.com/i.js');
+  url.searchParams.set('l', 'wt-wt');
+  url.searchParams.set('o', 'json');
+  url.searchParams.set('q', query);
+  url.searchParams.set('vqd', vqd);
+  url.searchParams.set('f', ',,,');
+  url.searchParams.set('p', '1');
+
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`DuckDuckGo images HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const results = [];
+  for (const row of payload?.results || []) {
+    const imageUrl = typeof row.image === 'string' ? row.image : '';
+    const pageUrl = typeof row.url === 'string' ? row.url : imageUrl;
+    const title = stripTags(String(row.title || row.source || 'Image'));
+    if (!pageUrl && !imageUrl) {
+      continue;
+    }
+    pushMediaEvidence(results, {
+      title,
+      url: pageUrl || imageUrl,
+      imageUrl: imageUrl || pageUrl,
+      thumbnail: typeof row.thumbnail === 'string' ? row.thumbnail : imageUrl,
+      snippet: typeof row.source === 'string' ? row.source : '',
+      kind: 'image',
+    });
+  }
+
+  if (results.length === 0) {
+    throw new Error('DuckDuckGo images returned no results');
+  }
+  return results;
+}
+
+async function searchDuckDuckGoVideos(selectionText) {
+  const query = buildSearchQuery(selectionText);
+  const vqd = await fetchDuckDuckGoVqd(query);
+  const url = new URL('https://duckduckgo.com/v.js');
+  url.searchParams.set('l', 'wt-wt');
+  url.searchParams.set('o', 'json');
+  url.searchParams.set('q', query);
+  url.searchParams.set('vqd', vqd);
+  url.searchParams.set('f', ',,,');
+
+  const response = await fetch(url.toString(), {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) {
+    throw new Error(`DuckDuckGo videos HTTP ${response.status}`);
+  }
+
+  const payload = await response.json();
+  const results = [];
+  for (const row of payload?.results || []) {
+    const pageUrl =
+      typeof row.content === 'string'
+        ? row.content
+        : typeof row.url === 'string'
+          ? row.url
+          : '';
+    const title = stripTags(String(row.title || 'Video'));
+    if (!pageUrl) {
+      continue;
+    }
+    const duration = row.duration ? String(row.duration) : '';
+    const publisher = row.publisher ? String(row.publisher) : '';
+    const snippetParts = [publisher, duration].filter(Boolean);
+    pushMediaEvidence(results, {
+      title,
+      url: pageUrl,
+      thumbnail:
+        typeof row.images?.medium === 'string'
+          ? row.images.medium
+          : typeof row.thumbnail === 'string'
+            ? row.thumbnail
+            : '',
+      snippet: snippetParts.join(' · '),
+      kind: 'video',
+    });
+  }
+
+  if (results.length === 0) {
+    throw new Error('DuckDuckGo videos returned no results');
+  }
+  return results;
+}
+
+async function searchEvidence(selectionText, searchKind = 'web') {
+  if (searchKind === 'images') {
+    return searchDuckDuckGoImages(selectionText);
+  }
+  if (searchKind === 'videos') {
+    return searchDuckDuckGoVideos(selectionText);
+  }
+  return searchDuckDuckGo(selectionText);
+}

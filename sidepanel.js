@@ -350,7 +350,7 @@ function formatEvidenceBlock(pageContext, evidence) {
 
   if (pageContext) {
     lines.push('PAGE CONTEXT');
-    lines.push(`URL: ${pageContext.url || ''}`);
+    lines.push(`URL: ${compactUrl(pageContext.url || '')}`);
     lines.push(`Title: ${pageContext.title || ''}`);
     if (pageContext.description) {
       lines.push(`Description: ${pageContext.description}`);
@@ -362,10 +362,17 @@ function formatEvidenceBlock(pageContext, evidence) {
 
   if (Array.isArray(evidence) && evidence.length > 0) {
     lines.push('');
-    lines.push('SEARCH EVIDENCE');
+    const kind = evidence[0]?.kind;
+    lines.push(kind === 'image' ? 'IMAGE EVIDENCE' : kind === 'video' ? 'VIDEO EVIDENCE' : 'SEARCH EVIDENCE');
     evidence.forEach((item, index) => {
       lines.push(`${index + 1}. ${item.title}`);
-      lines.push(`   URL: ${item.url}`);
+      lines.push(`   URL: ${compactUrl(item.url || '')}`);
+      if (item.imageUrl) {
+        lines.push(`   Image URL: ${compactUrl(item.imageUrl)}`);
+      }
+      if (item.kind) {
+        lines.push(`   Kind: ${item.kind}`);
+      }
       if (item.snippet) {
         lines.push(`   Snippet: ${item.snippet}`);
       }
@@ -506,18 +513,39 @@ function renderSources(evidence) {
   els.sourcesWrap.hidden = false;
   for (const item of evidence) {
     const li = document.createElement('li');
+    if (item.kind === 'image' || item.kind === 'video') {
+      li.className = `source-media source-${item.kind}`;
+    }
+
+    const thumbUrl = item.thumbnail || (item.kind === 'image' ? item.imageUrl : '');
+    if (thumbUrl) {
+      const thumb = document.createElement('img');
+      thumb.className = 'source-thumb';
+      thumb.src = thumbUrl;
+      thumb.alt = '';
+      thumb.loading = 'lazy';
+      thumb.referrerPolicy = 'no-referrer';
+      li.append(thumb);
+    }
+
+    const body = document.createElement('div');
+    body.className = 'source-body';
+
     const link = document.createElement('a');
     link.href = item.url;
     link.target = '_blank';
     link.rel = 'noreferrer noopener';
     link.textContent = item.title || item.url;
-    li.append(link);
+    body.append(link);
+
     if (item.snippet) {
       const snip = document.createElement('div');
       snip.className = 'muted';
       snip.textContent = item.snippet;
-      li.append(snip);
+      body.append(snip);
     }
+
+    li.append(body);
     els.sources.append(li);
   }
 }
@@ -539,17 +567,22 @@ function renderMarkdown(text) {
 }
 
 function setResultText(text) {
-  latestResultText = text;
-  if (!text) {
+  const compacted = compactUrlsInText(text || '');
+  latestResultText = compacted;
+  if (!compacted) {
     els.result.replaceChildren();
   } else {
-    els.result.innerHTML = renderMarkdown(text);
+    els.result.innerHTML = renderMarkdown(compacted);
     els.result.querySelectorAll('a[href]').forEach((anchor) => {
+      const href = compactUrl(anchor.getAttribute('href') || '');
+      if (href) {
+        anchor.setAttribute('href', href);
+      }
       anchor.setAttribute('target', '_blank');
       anchor.setAttribute('rel', 'noopener noreferrer');
     });
   }
-  els.copyBtn.hidden = !text;
+  els.copyBtn.hidden = !compacted;
   syncResultSection();
 }
 

@@ -196,7 +196,7 @@ async function handleActionClick(actionId, selectionText, tab) {
     if (action.needsGrounding) {
       let searchError = null;
       try {
-        evidence = await searchDuckDuckGo(trimmed);
+        evidence = await searchEvidence(trimmed, action.searchKind || 'web');
       } catch (error) {
         searchError = error;
         evidence = [];
@@ -216,8 +216,20 @@ async function handleActionClick(actionId, selectionText, tab) {
 
     await writePendingJob({
       ...loadingJob,
-      pageContext,
-      evidence,
+      pageContext: pageContext
+        ? {
+            ...pageContext,
+            url: compactUrl(pageContext.url || ''),
+          }
+        : null,
+      evidence: Array.isArray(evidence)
+        ? evidence.map((item) => ({
+            ...item,
+            url: compactUrl(item.url || ''),
+            imageUrl: item.imageUrl ? compactUrl(item.imageUrl) : item.imageUrl,
+            thumbnail: item.thumbnail ? compactUrl(item.thumbnail) : item.thumbnail,
+          }))
+        : [],
       status: 'ready',
       error: null,
     });

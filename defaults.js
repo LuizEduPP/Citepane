@@ -51,10 +51,12 @@ const UI_LOCALE_CODES = Object.freeze(['en', 'pt-BR', 'pt-PT', 'es', 'fr', 'de']
 const GROUNDING_RULE =
   'Use ONLY the provided page context and search evidence. ' +
   'If evidence is insufficient, say clearly that there is not enough grounding. ' +
-  'Do not invent facts. Cite source titles/URLs you relied on.';
+  'Do not invent facts. Cite sources as Markdown links [Title](url) using the compact URLs provided. ' +
+  'Never paste long query-string URLs into the answer body.';
 
 const MARKDOWN_FORMAT_RULE =
   'Format the answer in Markdown when helpful (headings, bullet lists, numbered steps, bold, inline code, links). ' +
+  'Prefer short links: [source title](https://example.com/path). Do not dump raw tracking URLs. ' +
   'Do not wrap the entire answer in a fenced code block.';
 
 const ACTIONS = Object.freeze([
@@ -62,6 +64,7 @@ const ACTIONS = Object.freeze([
     id: 'explain',
     titleKey: 'actionExplain',
     needsGrounding: true,
+    searchKind: 'web',
     systemPrompt:
       'Explain the selected text clearly and directly. ' +
       'Situate it in the page topic when relevant, and say what the evidence confirms. ' +
@@ -71,6 +74,7 @@ const ACTIONS = Object.freeze([
     id: 'define',
     titleKey: 'actionDefine',
     needsGrounding: true,
+    searchKind: 'web',
     systemPrompt:
       'Give a precise definition of the selected term or concept, with sources. ' +
       GROUNDING_RULE,
@@ -79,6 +83,7 @@ const ACTIONS = Object.freeze([
     id: 'fact-check',
     titleKey: 'actionFactCheck',
     needsGrounding: true,
+    searchKind: 'web',
     systemPrompt:
       'Fact-check claims in the selected text. Mark each as supported, contested, or insufficient data. ' +
       GROUNDING_RULE,
@@ -87,14 +92,38 @@ const ACTIONS = Object.freeze([
     id: 'find-sources',
     titleKey: 'actionFindSources',
     needsGrounding: true,
+    searchKind: 'web',
     systemPrompt:
       'List relevant sources for the selected text (title, URL, why it helps). Prefer the provided evidence. ' +
+      GROUNDING_RULE,
+  }),
+  Object.freeze({
+    id: 'find-images',
+    titleKey: 'actionFindImages',
+    needsGrounding: true,
+    searchKind: 'images',
+    systemPrompt:
+      'Find relevant images for the selected text using ONLY the provided IMAGE EVIDENCE. ' +
+      'For each image list a short title, the page URL, and the image URL. ' +
+      'Use Markdown image embeds ![title](imageUrl) when helpful, plus a normal link to the page. ' +
+      GROUNDING_RULE,
+  }),
+  Object.freeze({
+    id: 'find-videos',
+    titleKey: 'actionFindVideos',
+    needsGrounding: true,
+    searchKind: 'videos',
+    systemPrompt:
+      'Find relevant videos for the selected text using ONLY the provided VIDEO EVIDENCE. ' +
+      'For each video list a short title, the watch URL, and a one-line why it is relevant. ' +
+      'Cite as Markdown links [title](url). ' +
       GROUNDING_RULE,
   }),
   Object.freeze({
     id: 'pros-cons',
     titleKey: 'actionProsCons',
     needsGrounding: true,
+    searchKind: 'web',
     systemPrompt:
       'List pros and cons anchored in evidence, not free opinion. ' +
       'Include the strongest counterpoints on each side when sources support them. ' +
@@ -157,6 +186,8 @@ const ACTION_MENU_GROUPS = Object.freeze([
       'define',
       'fact-check',
       'find-sources',
+      'find-images',
+      'find-videos',
       'pros-cons',
     ]),
   }),
@@ -347,6 +378,73 @@ function truncateText(text, maxChars) {
   }
 
   return `${text.slice(0, maxChars - 1)}…`;
+}
+
+/** Keep citation URLs short: drop tracking params; keep only a few meaningful query keys. */
+function compactUrl(rawUrl, maxLength = 140) {
+  if (typeof rawUrl !== 'string') {
+    return '';
+  }
+
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const url = new URL(trimmed);
+    url.hash = '';
+
+    const isSearchHost =
+      /(^|\.)google\./i.test(url.hostname) ||
+      /(^|\.)bing\./i.test(url.hostname) ||
+      /(^|\.)duckduckgo\./i.test(url.hostname);
+
+    if (isSearchHost) {
+      const q = url.searchParams.get('q');
+      url.search = '';
+      if (q) {
+        url.searchParams.set('q', q);
+      }
+    } else {
+      const keepKeys = new Set(['q', 'v', 'id', 'p', 'page', 't']);
+      const nextParams = new URLSearchParams();
+      for (const [key, value] of url.searchParams.entries()) {
+        if (!keepKeys.has(key.toLowerCase())) {
+          continue;
+        }
+        if (value.length > 120) {
+          continue;
+        }
+        nextParams.set(key, value);
+      }
+      url.search = nextParams.toString();
+    }
+
+    let out = url.toString();
+    if (out.length > maxLength) {
+      url.search = '';
+      out = url.toString();
+    }
+    if (out.length > maxLength) {
+      return truncateText(out, maxLength);
+    }
+    return out;
+  } catch {
+    return truncateText(trimmed, maxLength);
+  }
+}
+
+function compactUrlsInText(text) {
+  if (typeof text !== 'string' || !text) {
+    return text || '';
+  }
+
+  return text.replace(/https?:\/\/[^\s)\]>'"<]+/g, (match) => {
+    const cleaned = match.replace(/[.,;:!?]+$/g, '');
+    const trailing = match.slice(cleaned.length);
+    return `${compactUrl(cleaned)}${trailing}`;
+  });
 }
 
 function pageContextHasSignal(pageContext) {
