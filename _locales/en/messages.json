@@ -11,6 +11,9 @@
   "menuGroupResearch": {
     "message": "Research"
   },
+  "menuGroupSources": {
+    "message": "Sources"
+  },
   "menuGroupWriting": {
     "message": "Writing"
   },

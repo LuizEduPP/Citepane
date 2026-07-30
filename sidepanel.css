@@ -434,7 +434,7 @@ main {
 
 .action-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px;
   padding: 3px;
   border-radius: 12px;
@@ -446,12 +446,12 @@ main {
   appearance: none;
   border: 0;
   margin: 0;
-  padding: 8px 6px;
+  padding: 8px 4px;
   border-radius: 9px;
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -483,6 +483,14 @@ html[data-theme="dark"] .action-tab[aria-selected="true"] {
   border: 1px solid var(--line);
   background: var(--bg-elev);
   animation: panel-in 0.16s ease;
+}
+
+.action-panel:empty,
+.action-panel[hidden] {
+  display: none !important;
+  padding: 0;
+  border: 0;
+  animation: none;
 }
 
 @keyframes panel-in {

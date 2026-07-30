@@ -622,6 +622,7 @@ async function runJob(job) {
   els.error.textContent = '';
   setSelectionVisible(selectionText);
   setActionsVisible(Boolean(selectionText));
+  collapseActionGroups();
   setActionsEnabled(false);
   renderSources(job.evidence);
 
@@ -818,8 +819,9 @@ let activeActionGroupId = null;
 
 function collapseActionGroups() {
   activeActionGroupId = null;
-  els.actions.hidden = true;
   els.actions.replaceChildren();
+  els.actions.hidden = true;
+  els.actionTabs.hidden = false;
   els.actionTabs.querySelectorAll('.action-tab').forEach((tab) => {
     tab.setAttribute('aria-selected', 'false');
   });
@@ -827,7 +829,6 @@ function collapseActionGroups() {
 
 function renderActionGroupPanel(group) {
   els.actions.replaceChildren();
-  els.actions.hidden = false;
 
   if (group.kind === 'translate') {
     const row = document.createElement('div');
@@ -854,6 +855,7 @@ function renderActionGroupPanel(group) {
 
     row.append(select, button);
     els.actions.append(row);
+    els.actions.hidden = false;
     return;
   }
 
@@ -873,6 +875,8 @@ function renderActionGroupPanel(group) {
     });
     els.actions.append(button);
   }
+
+  els.actions.hidden = els.actions.childElementCount === 0;
 }
 
 function setActiveActionGroup(groupId) {
@@ -895,7 +899,6 @@ function setActiveActionGroup(groupId) {
 }
 
 function fillActionPicker() {
-  const previousGroup = activeActionGroupId;
   els.actionTabs.replaceChildren();
   collapseActionGroups();
 
@@ -912,17 +915,11 @@ function fillActionPicker() {
     });
     els.actionTabs.append(tab);
   }
-
-  if (previousGroup && ACTION_MENU_GROUPS.some((group) => group.id === previousGroup)) {
-    setActiveActionGroup(previousGroup);
-  }
 }
 
 function setActionsVisible(visible) {
   els.actionsWrap.hidden = !visible;
-  if (!visible) {
-    collapseActionGroups();
-  }
+  collapseActionGroups();
 }
 
 function setActionsEnabled(enabled) {

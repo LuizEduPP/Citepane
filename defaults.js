@@ -181,15 +181,12 @@ const ACTION_MENU_GROUPS = Object.freeze([
   Object.freeze({
     id: 'citepane-group-research',
     titleKey: 'menuGroupResearch',
-    actionIds: Object.freeze([
-      'explain',
-      'define',
-      'fact-check',
-      'find-sources',
-      'find-images',
-      'find-videos',
-      'pros-cons',
-    ]),
+    actionIds: Object.freeze(['explain', 'define', 'fact-check', 'pros-cons']),
+  }),
+  Object.freeze({
+    id: 'citepane-group-sources',
+    titleKey: 'menuGroupSources',
+    actionIds: Object.freeze(['find-sources', 'find-images', 'find-videos']),
   }),
   Object.freeze({
     id: 'citepane-group-writing',
