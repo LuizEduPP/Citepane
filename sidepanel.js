@@ -15,7 +15,6 @@ let localCancelledAt = 0;
 let inferenceBusy = false;
 let latestResultText = '';
 let lastLiveSelection = '';
-let activeJobToken = '';
 let lastHandledJobKey = '';
 let runJobSeq = 0;
 
@@ -39,7 +38,6 @@ const els = {
   copyBtn: document.getElementById('copy-btn'),
   settingsBtn: document.getElementById('settings-btn'),
   settingsOverlay: document.getElementById('settings-overlay'),
-  settingsPanel: document.getElementById('settings-panel'),
   settingsBackdrop: document.getElementById('settings-backdrop'),
   settingsClose: document.getElementById('settings-close'),
   form: document.getElementById('settings-form'),
@@ -105,7 +103,6 @@ function applyStaticI18n() {
 function setSettingsOpen(open) {
   els.settingsOverlay.hidden = !open;
   els.settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  document.body.classList.toggle('settings-open', open);
   if (open) {
     const focusTarget = els.baseUrl;
     if (focusTarget && typeof focusTarget.focus === 'function') {
@@ -158,49 +155,37 @@ function jobIsCancelled(job) {
   return job.createdAt <= localCancelledAt;
 }
 
-function cancelInference() {
-  const stamp = markLocalCancelled(Date.now());
-  runJobSeq += 1;
-  activeJobToken = '';
+async function syncCancelledWatermark() {
+  try {
+    const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
+    const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
+    if (typeof cancelledAt === 'number') {
+      localCancelledAt = Math.max(localCancelledAt, cancelledAt);
+    }
+  } catch {
+    // ignore
+  }
+}
 
+function abortActiveStream() {
   if (activeAbort) {
     activeAbort.abort();
     activeAbort = null;
   }
+}
 
-  // Instant cancel in the service worker (avoids storage race during search).
-  chrome.runtime
-    .sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp })
-    .catch(() => {});
+function invalidateJobRuns() {
+  runJobSeq += 1;
+  lastHandledJobKey = '';
+}
 
-  chrome.storage.session
-    .get(STORAGE_PENDING_JOB_KEY)
-    .then(async (stored) => {
-      const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
-      if (typeof pendingAt === 'number') {
-        markLocalCancelled(pendingAt);
-        try {
-          await chrome.runtime.sendMessage({
-            type: MESSAGE_CANCEL_JOB,
-            createdAt: pendingAt,
-          });
-        } catch {
-          // ignore
-        }
-      }
-      await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: localCancelledAt });
-      await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
-    })
-    .catch(() => {});
-
+function clearJobOutputUi() {
   setActionLabel('');
   setStatus('');
   setCancelAvailable(false);
   setInferenceBusy(false);
   els.error.hidden = true;
   els.error.textContent = '';
-
-  // Always drop in-progress output so cancel looks definitive.
   latestResultText = '';
   els.result.replaceChildren();
   setCopyAvailable(false);
@@ -208,23 +193,66 @@ function cancelInference() {
   renderSources([]);
 }
 
-async function jobWasCancelledAsync(job) {
-  if (jobIsCancelled(job)) {
-    return true;
+function finishCancelledUi() {
+  setCancelAvailable(false);
+  setStatus('');
+  setInferenceBusy(false);
+}
+
+async function persistLastResult(actionId, text) {
+  await chrome.storage.session.set({
+    [STORAGE_LAST_RESULT_KEY]: {
+      actionId,
+      text,
+      createdAt: Date.now(),
+    },
+  });
+}
+
+/** Service worker owns cancelledJobAt + pending removal. Extra session keys cleared here. */
+function requestCancelJob({ createdAt, removeKeys = [] } = {}) {
+  const stamp = markLocalCancelled(createdAt ?? Date.now());
+  chrome.runtime.sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp }).catch(() => {});
+
+  const extras = removeKeys.filter((key) => key !== STORAGE_PENDING_JOB_KEY);
+  if (extras.length > 0) {
+    chrome.storage.session.remove(extras).catch(() => {});
   }
-  if (typeof job?.createdAt !== 'number') {
-    return false;
+  return stamp;
+}
+
+function stopCurrentWork({ removeKeys = [] } = {}) {
+  abortActiveStream();
+  invalidateJobRuns();
+  clearJobOutputUi();
+
+  chrome.storage.session
+    .get(STORAGE_PENDING_JOB_KEY)
+    .then((stored) => {
+      const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
+      requestCancelJob({
+        createdAt: typeof pendingAt === 'number' ? Math.max(pendingAt, Date.now()) : Date.now(),
+        removeKeys,
+      });
+    })
+    .catch(() => {
+      requestCancelJob({ removeKeys });
+    });
+}
+
+function cancelInference() {
+  stopCurrentWork();
+}
+
+function clearGeneratedOutput({ clearJobStorage = true } = {}) {
+  if (!clearJobStorage) {
+    abortActiveStream();
+    invalidateJobRuns();
+    markLocalCancelled(Date.now());
+    clearJobOutputUi();
+    return;
   }
-  try {
-    const stored = await chrome.storage.session.get(STORAGE_CANCELLED_JOB_KEY);
-    const cancelledAt = stored[STORAGE_CANCELLED_JOB_KEY];
-    if (typeof cancelledAt === 'number') {
-      localCancelledAt = Math.max(localCancelledAt, cancelledAt);
-    }
-    return job.createdAt <= localCancelledAt;
-  } catch {
-    return jobIsCancelled(job);
-  }
+  stopCurrentWork({ removeKeys: [STORAGE_LAST_RESULT_KEY] });
 }
 
 function setCopyAvailable(available) {
@@ -365,14 +393,6 @@ function applyMediaCaptions(captionsByIndex) {
   });
 }
 
-function setResultVisible(visible) {
-  if (!visible) {
-    els.resultWrap.hidden = true;
-    return;
-  }
-  syncResultSection();
-}
-
 function fillLanguageSelects() {
   els.responseLanguage.replaceChildren();
   const responseAuto = document.createElement('option');
@@ -472,33 +492,8 @@ function fillModelSelect(modelIds, selectedModel) {
   }
 }
 
-async function ensureApiPermission(baseUrl, { interactive = false } = {}) {
-  if (isLocalApiHost(baseUrl)) {
-    return;
-  }
-
-  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
-
-  // chrome.permissions.request must run in this page during the user gesture.
-  // Do not await anything else before request(), or Chrome drops the gesture.
-  if (interactive) {
-    const granted = await chrome.permissions.request({ origins: [origin] });
-    if (!granted) {
-      throw new Error(`Host permission denied for ${origin}`);
-    }
-    return;
-  }
-
-  const already = await chrome.permissions.contains({ origins: [origin] });
-  if (!already) {
-    throw new Error(
-      `Host permission required for ${origin}. Click Refresh or Save in Settings to grant access.`,
-    );
-  }
-}
-
 async function fetchAvailableModels(baseUrl, apiKey, { interactive = false } = {}) {
-  await ensureApiPermission(baseUrl, { interactive });
+  await ensureApiHostPermission(baseUrl, { interactive });
 
   const headers = {};
   if (typeof apiKey === 'string' && apiKey.trim()) {
@@ -533,7 +528,7 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
 
   try {
     // Request host access before any other await so the click gesture stays valid.
-    await ensureApiPermission(baseUrl, { interactive });
+    await ensureApiHostPermission(baseUrl, { interactive });
   } catch (error) {
     fillModelSelect([], selected);
     if (!quiet) {
@@ -676,7 +671,7 @@ function extractDeltaContent(payload) {
 }
 
 async function streamChatCompletion({ settings, messages, signal, onDelta }) {
-  await ensureApiPermission(settings.baseUrl);
+  await ensureApiHostPermission(settings.baseUrl);
 
   const headers = {
     'Content-Type': 'application/json',
@@ -873,61 +868,16 @@ function setResultText(text) {
   syncResultSection();
 }
 
-function clearGeneratedOutput({ clearJobStorage = true } = {}) {
-  if (activeAbort) {
-    activeAbort.abort();
-    activeAbort = null;
-  }
-
-  const stamp = markLocalCancelled(Date.now());
-  runJobSeq += 1;
-  activeJobToken = '';
-  setActionLabel('');
-  setStatus('');
-  setCancelAvailable(false);
-  setInferenceBusy(false);
-  els.error.hidden = true;
-  els.error.textContent = '';
-  latestResultText = '';
-  els.result.replaceChildren();
-  setCopyAvailable(false);
-  els.resultWrap.hidden = true;
-  renderSources([]);
-
-  if (clearJobStorage) {
-    chrome.runtime.sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp }).catch(() => {});
-    chrome.storage.session
-      .get(STORAGE_PENDING_JOB_KEY)
-      .then(async (stored) => {
-        const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
-        if (typeof pendingAt === 'number') {
-          markLocalCancelled(pendingAt);
-        }
-        await chrome.storage.session.set({ [STORAGE_CANCELLED_JOB_KEY]: localCancelledAt });
-        await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY]);
-      })
-      .catch(() => {});
-  }
-}
-
 async function runJob(job) {
-  const jobToken = `${job?.createdAt || 0}:${job?.status || ''}:${job?.actionId || ''}`;
-  if (jobToken === activeJobToken && job?.status === 'ready') {
-    // Same ready job already running (message + storage dual delivery).
-    return;
-  }
+  await syncCancelledWatermark();
 
-  // Don't abort an in-flight stream when a duplicate/stale event arrives after cancel.
   if (activeAbort && jobIsCancelled(job)) {
-    setCancelAvailable(false);
-    setInferenceBusy(false);
-    setStatus('');
+    finishCancelledUi();
     return;
   }
 
   if (activeAbort) {
-    activeAbort.abort();
-    activeAbort = null;
+    abortActiveStream();
   }
 
   const selectionText = (job.selectionText || '').trim();
@@ -935,20 +885,17 @@ async function runJob(job) {
     lastLiveSelection = selectionText;
   }
 
-  if (jobIsCancelled(job) || (await jobWasCancelledAsync(job))) {
-    setCancelAvailable(false);
-    setInferenceBusy(false);
-    setStatus('');
+  if (jobIsCancelled(job)) {
+    finishCancelledUi();
     return;
   }
 
-  // Only a newer loading job clears the cancel flag (watermark stays for older jobs).
+  // Newer loading job clears the cancel flag; watermark still blocks older jobs.
   if (job.status === 'loading' && typeof job.createdAt === 'number' && job.createdAt > localCancelledAt) {
     cancelRequested = false;
   }
 
   const seq = ++runJobSeq;
-  activeJobToken = jobToken;
 
   els.idle.hidden = true;
   els.job.hidden = false;
@@ -976,7 +923,8 @@ async function runJob(job) {
   setActionsVisible(Boolean(selectionText));
   setInferenceBusy(true);
 
-  if (action && isMediaTooltipAction(action) && Array.isArray(job.evidence) && job.evidence.length > 0) {
+  const mediaMode = action && isMediaTooltipAction(action);
+  if (mediaMode && Array.isArray(job.evidence) && job.evidence.length > 0) {
     renderMediaGallery(job.evidence);
   } else {
     renderSources(job.evidence);
@@ -986,14 +934,11 @@ async function runJob(job) {
     setStatus(uiMessage('uiLoading'));
     setCopyAvailable(false);
     setCancelAvailable(true);
-    if (!(action && isMediaTooltipAction(action))) {
+    if (!mediaMode) {
       latestResultText = '';
       els.result.replaceChildren();
       syncResultSection();
     }
-    els.error.hidden = true;
-    els.error.textContent = '';
-    setInferenceBusy(true);
     return;
   }
 
@@ -1001,7 +946,7 @@ async function runJob(job) {
     setStatus('');
     setCopyAvailable(false);
     setCancelAvailable(false);
-    if (!(action && isMediaTooltipAction(action))) {
+    if (!mediaMode) {
       latestResultText = '';
       els.result.replaceChildren();
     }
@@ -1038,8 +983,7 @@ async function runJob(job) {
   setCancelAvailable(true);
   setInferenceBusy(true);
 
-  const mediaMode = isMediaTooltipAction(action);
-  if (mediaMode) {
+  if (isMediaTooltipAction(action)) {
     renderMediaGallery(job.evidence);
   } else {
     latestResultText = '';
@@ -1047,15 +991,14 @@ async function runJob(job) {
     syncResultSection();
   }
 
-  if (jobIsCancelled(job) || cancelRequested) {
-    setCancelAvailable(false);
-    setStatus('');
-    setInferenceBusy(false);
+  if (jobIsCancelled(job)) {
+    finishCancelledUi();
     return;
   }
 
   const controller = new AbortController();
   activeAbort = controller;
+  const streamMedia = isMediaTooltipAction(action);
 
   try {
     const messages = buildMessages(job, action);
@@ -1063,51 +1006,36 @@ async function runJob(job) {
       settings: currentSettings,
       messages,
       signal: controller.signal,
-      onDelta: mediaMode
+      onDelta: streamMedia
         ? () => {}
         : (delta) => {
-            if (jobIsCancelled(job) || cancelRequested || seq !== runJobSeq) {
+            if (jobIsCancelled(job) || seq !== runJobSeq) {
               return;
             }
             setResultText(latestResultText + delta);
           },
     });
 
-    if (jobIsCancelled(job) || cancelRequested || seq !== runJobSeq) {
+    if (jobIsCancelled(job) || seq !== runJobSeq) {
       return;
     }
 
-    if (mediaMode) {
+    if (streamMedia) {
       const captions = parseMediaCaptions(full);
       applyMediaCaptions(captions);
       latestResultText = mediaCopyText(job.evidence, captions);
       setCopyAvailable(true);
       setStatus('');
-      await chrome.storage.session.set({
-        [STORAGE_LAST_RESULT_KEY]: {
-          actionId: job.actionId,
-          text: latestResultText,
-          createdAt: Date.now(),
-        },
-      });
+      await persistLastResult(job.actionId, latestResultText);
     } else {
       setResultText(full);
       setCopyAvailable(true);
       setStatus('');
-      await chrome.storage.session.set({
-        [STORAGE_LAST_RESULT_KEY]: {
-          actionId: job.actionId,
-          text: full,
-          createdAt: Date.now(),
-        },
-      });
+      await persistLastResult(job.actionId, full);
     }
   } catch (error) {
-    if (error?.name === 'AbortError' || cancelRequested || jobIsCancelled(job)) {
+    if (error?.name === 'AbortError' || jobIsCancelled(job)) {
       setStatus('');
-      if (latestResultText) {
-        setCopyAvailable(true);
-      }
       return;
     }
     setStatus('');
@@ -1122,9 +1050,6 @@ async function runJob(job) {
     if (seq === runJobSeq) {
       setCancelAvailable(false);
       setInferenceBusy(false);
-      if (activeJobToken === jobToken) {
-        activeJobToken = '';
-      }
     }
   }
 }
@@ -1157,7 +1082,7 @@ els.form.addEventListener('submit', async (event) => {
   try {
     const baseUrl = els.baseUrl.value.trim();
     if (baseUrl) {
-      await ensureApiPermission(baseUrl, { interactive: true });
+      await ensureApiHostPermission(baseUrl, { interactive: true });
     }
 
     const next = await persistSettings({
@@ -1398,14 +1323,24 @@ async function requestRunAction(actionId) {
 function applyLiveSelection(text) {
   const trimmed = typeof text === 'string' ? text.trim() : '';
 
+  // Tab/window switches rewrite liveSelection (often empty). Never interrupt a run.
+  if (inferenceBusy || activeAbort) {
+    return;
+  }
+
   if (!trimmed) {
-    if (lastLiveSelection || latestResultText || activeAbort) {
-      clearGeneratedOutput();
-    }
     lastLiveSelection = '';
     setSelectionVisible('');
-    setActionLabel('');
     setActionsVisible(false);
+
+    // Keep a finished answer visible when the user just changes tabs.
+    if (latestResultText) {
+      els.idle.hidden = true;
+      els.job.hidden = false;
+      return;
+    }
+
+    setActionLabel('');
     els.job.hidden = true;
     els.idle.hidden = false;
     return;
@@ -1416,7 +1351,7 @@ function applyLiveSelection(text) {
     els.job.hidden = false;
     setSelectionVisible(trimmed);
     setActionsVisible(true);
-    setActionsEnabled(!inferenceBusy);
+    setActionsEnabled(true);
     return;
   }
 
@@ -1427,14 +1362,11 @@ function applyLiveSelection(text) {
   els.job.hidden = false;
   setSelectionVisible(trimmed);
   setActionsVisible(true);
-  setActionsEnabled(!inferenceBusy);
+  setActionsEnabled(true);
 }
 
 function resetPanelUi({ cancelCurrent = false } = {}) {
-  if (activeAbort) {
-    activeAbort.abort();
-    activeAbort = null;
-  }
+  abortActiveStream();
 
   if (cancelCurrent) {
     markLocalCancelled(Date.now());
@@ -1443,10 +1375,8 @@ function resetPanelUi({ cancelCurrent = false } = {}) {
   lastLiveSelection = '';
   latestResultText = '';
   cancelRequested = false;
-  inferenceBusy = false;
-  activeJobToken = '';
-  lastHandledJobKey = '';
-  runJobSeq += 1;
+  setInferenceBusy(false);
+  invalidateJobRuns();
   setSettingsOpen(false);
   setActionLabel('');
   setStatus('');
@@ -1467,23 +1397,18 @@ function resetPanelUi({ cancelCurrent = false } = {}) {
 function clearPanelSession() {
   chrome.storage.session
     .get(STORAGE_PENDING_JOB_KEY)
-    .then(async (stored) => {
-      const pending = stored[STORAGE_PENDING_JOB_KEY];
-      const stamp =
-        typeof pending?.createdAt === 'number' ? pending.createdAt : Date.now();
-      markLocalCancelled(stamp);
-      try {
-        await chrome.runtime.sendMessage({ type: MESSAGE_CANCEL_JOB, createdAt: stamp });
-      } catch {
-        // Service worker may be restarting.
-      }
-      await chrome.storage.session.remove([
-        STORAGE_PENDING_JOB_KEY,
-        STORAGE_LAST_RESULT_KEY,
-        STORAGE_LIVE_SELECTION_KEY,
-      ]);
+    .then((stored) => {
+      const pendingAt = stored[STORAGE_PENDING_JOB_KEY]?.createdAt;
+      requestCancelJob({
+        createdAt: typeof pendingAt === 'number' ? pendingAt : Date.now(),
+        removeKeys: [STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY],
+      });
     })
-    .catch(() => {});
+    .catch(() => {
+      requestCancelJob({
+        removeKeys: [STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY],
+      });
+    });
 }
 
 function resetPanelOnClose() {
@@ -1509,12 +1434,6 @@ function enqueueJob(job) {
   lastHandledJobKey = key;
   runJob(job);
 }
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type === MESSAGE_JOB_UPDATED && message.job) {
-    enqueueJob(message.job);
-  }
-});
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'session') {

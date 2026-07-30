@@ -31,12 +31,6 @@ async function writePendingJob(job) {
   // Re-check after await — cancel may have landed during the write.
   if (await isJobCancelled(job?.createdAt)) {
     await chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY]);
-    return;
-  }
-  try {
-    await chrome.runtime.sendMessage({ type: MESSAGE_JOB_UPDATED, job });
-  } catch {
-    // Side panel may be closed.
   }
 }
 
@@ -151,7 +145,8 @@ async function requestPageContext(tabId, tabUrl) {
   try {
     const [{ result }] = await chrome.scripting.executeScript({
       target: { tabId },
-      func: () => {
+      args: [PAGE_BODY_MAX_CHARS, PAGE_CONTEXT_MAX_CHARS],
+      func: (bodyMax, excerptMax) => {
         const meta =
           document.querySelector('meta[name="description"]') ||
           document.querySelector('meta[property="og:description"]');
@@ -161,12 +156,12 @@ async function requestPageContext(tabId, tabUrl) {
           document.querySelector('main') ||
           document.querySelector('[role="main"]') ||
           document.body;
-        const body = (root?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 12000);
+        const body = (root?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, bodyMax);
         return {
           url: location.href,
           title: document.title || '',
           description: meta?.getAttribute('content')?.trim() || '',
-          excerpt: selection.replace(/\s+/g, ' ').trim().slice(0, 2000),
+          excerpt: selection.replace(/\s+/g, ' ').trim().slice(0, excerptMax),
           body,
         };
       },
@@ -179,39 +174,6 @@ async function requestPageContext(tabId, tabUrl) {
   }
 
   return emptyPageContext(tabUrl);
-}
-
-async function ensureHostPermission(baseUrl) {
-  if (isLocalApiHost(baseUrl)) {
-    return;
-  }
-
-  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
-  const already = await chrome.permissions.contains({ origins: [origin] });
-  if (already) {
-    return;
-  }
-
-  throw new Error(
-    `Host permission required for ${origin}. Open Settings, then Save or Refresh models to grant access.`,
-  );
-}
-
-async function requestHostPermission(baseUrl) {
-  if (isLocalApiHost(baseUrl)) {
-    return;
-  }
-
-  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
-  const already = await chrome.permissions.contains({ origins: [origin] });
-  if (already) {
-    return;
-  }
-
-  const granted = await chrome.permissions.request({ origins: [origin] });
-  if (!granted) {
-    throw new Error(`Host permission denied for ${origin}`);
-  }
 }
 
 async function openSidePanel(tabId) {
@@ -524,30 +486,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await handleActionClick(actionId, selectionText, tab);
         sendResponse({ ok: true });
       })
-      .catch((error) =>
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    return true;
-  }
-
-  if (message?.type === 'ENSURE_HOST_PERMISSION') {
-    ensureHostPermission(message.baseUrl)
-      .then(() => sendResponse({ ok: true }))
-      .catch((error) =>
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        }),
-      );
-    return true;
-  }
-
-  if (message?.type === 'REQUEST_HOST_PERMISSION') {
-    requestHostPermission(message.baseUrl)
-      .then(() => sendResponse({ ok: true }))
       .catch((error) =>
         sendResponse({
           ok: false,

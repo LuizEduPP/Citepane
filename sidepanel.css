@@ -39,7 +39,6 @@
   --text-strong: #152a40;
   --pane: #1f7a8c;
   --muted: #6b7c8d;
-  --accent: #1f7a8c;
   --accent-deep: #145a8c;
   --accent-bright: #1aa884;
   --accent-soft: rgba(31, 122, 140, 0.1);
@@ -71,7 +70,6 @@ html[data-theme="dark"] {
   --text-strong: #e6eef6;
   --pane: #4db8c9;
   --muted: #8494a4;
-  --accent: #4db8c9;
   --accent-deep: #7ec4ff;
   --accent-bright: #3dd4b0;
   --accent-soft: rgba(77, 184, 201, 0.12);
@@ -218,10 +216,6 @@ body::before {
   background: color-mix(in srgb, var(--bg-deep) 30%, rgba(8, 14, 20, 0.5));
   backdrop-filter: blur(10px);
   animation: overlay-in 0.18s ease;
-}
-
-.settings-overlay[hidden] {
-  display: none !important;
 }
 
 .settings-backdrop {
@@ -460,10 +454,6 @@ main {
   border: 1px solid color-mix(in srgb, var(--pane) 18%, transparent);
 }
 
-.status-row[hidden] {
-  display: none !important;
-}
-
 .status {
   margin: 0;
   font-size: 0.8rem;
@@ -571,8 +561,7 @@ html[data-theme="dark"] .action-tabs {
   animation: panel-in 0.16s ease;
 }
 
-.action-panel:empty,
-.action-panel[hidden] {
+.action-panel:empty {
   display: none !important;
   padding: 0;
   animation: none;

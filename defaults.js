@@ -1,5 +1,4 @@
 const EXT_PARENT_MENU_ID = 'citepane-root';
-const TRANSLATE_PARENT_MENU_ID = 'citepane-group-translate';
 const TRANSLATE_ACTION_PREFIX = 'translate:';
 
 const STORAGE_SETTINGS_KEY = 'settings';
@@ -26,8 +25,6 @@ const SELECTION_PREVIEW_MAX_CHARS = 280;
 const LIVE_SELECTION_MAX_CHARS = 8000;
 
 const MESSAGE_GET_PAGE_CONTEXT = 'GET_PAGE_CONTEXT';
-const MESSAGE_JOB_UPDATED = 'JOB_UPDATED';
-const MESSAGE_SETTINGS_UPDATED = 'SETTINGS_UPDATED';
 const MESSAGE_SELECTION_CHANGED = 'SELECTION_CHANGED';
 const MESSAGE_GET_LIVE_SELECTION = 'GET_LIVE_SELECTION';
 const MESSAGE_CANCEL_JOB = 'CANCEL_JOB';
@@ -368,6 +365,33 @@ function languageInstruction(responseLanguage) {
 function isLocalApiHost(baseUrl) {
   const url = new URL(normalizeBaseUrl(baseUrl));
   return LOCAL_HOSTNAMES.has(url.hostname);
+}
+
+/**
+ * Shared by side panel (user gesture) and any future callers.
+ * interactive:true uses permissions.request — must stay in the gesture stack.
+ */
+async function ensureApiHostPermission(baseUrl, { interactive = false } = {}) {
+  if (isLocalApiHost(baseUrl)) {
+    return;
+  }
+
+  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
+
+  if (interactive) {
+    const granted = await chrome.permissions.request({ origins: [origin] });
+    if (!granted) {
+      throw new Error(`Host permission denied for ${origin}`);
+    }
+    return;
+  }
+
+  const already = await chrome.permissions.contains({ origins: [origin] });
+  if (!already) {
+    throw new Error(
+      `Host permission required for ${origin}. Open Settings, then Save or Refresh models to grant access.`,
+    );
+  }
 }
 
 function chatCompletionsUrl(baseUrl) {
