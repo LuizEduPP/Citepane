@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Highlight text, run AI actions, and get grounded answers in the side panel—your model, your endpoint."
+    "message": "Select text, run AI in the side panel, and get answers grounded in the page and the web—with your own model."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -66,10 +66,10 @@
     "message": "Settings"
   },
   "uiGithubProfile": {
-    "message": "GitHub — {{HANDLE}}"
+    "message": "Open {{HANDLE}} on GitHub"
   },
   "uiBaseUrl": {
-    "message": "API base URL"
+    "message": "API base URL (OpenAI-compatible)"
   },
   "uiModel": {
     "message": "Model"
@@ -81,16 +81,16 @@
     "message": "Load models"
   },
   "uiModelLoadFailed": {
-    "message": "Couldn't load models from that base URL."
+    "message": "Could not list models from that base URL. Check the address and host permission."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Add a base URL first, then load models."
+    "message": "Enter an API base URL first, then load the available models."
   },
   "uiModelsLoaded": {
-    "message": "Models ready"
+    "message": "Models loaded successfully"
   },
   "uiApiKey": {
-    "message": "API key (optional)"
+    "message": "API key (optional for local servers)"
   },
   "uiResponseLanguage": {
     "message": "Answer language"
@@ -99,13 +99,13 @@
     "message": "Interface language"
   },
   "uiUiLanguageAuto": {
-    "message": "Match browser"
+    "message": "Same as browser"
   },
   "uiTheme": {
     "message": "Theme"
   },
   "uiThemeAuto": {
-    "message": "Match system"
+    "message": "Same as system"
   },
   "uiThemeLight": {
     "message": "Light"
@@ -123,45 +123,45 @@
     "message": "Copied"
   },
   "uiSelection": {
-    "message": "Selected text"
+    "message": "Your selection"
   },
   "uiSources": {
-    "message": "Sources"
+    "message": "Sources used"
   },
   "uiResult": {
     "message": "Answer"
   },
   "uiLoading": {
-    "message": "Working…"
+    "message": "Working on it…"
   },
   "uiCancel": {
     "message": "Stop"
   },
   "uiIdle": {
-    "message": "Select text on a page—it appears here. Then right-click Citepane and pick an action."
+    "message": "Select text on a page—it appears here. Then pick an action in this panel to explain, summarize, translate, find media, and more."
   },
   "uiSaved": {
-    "message": "Saved"
+    "message": "Settings saved"
   },
   "errorNoSelection": {
-    "message": "Select some text first."
+    "message": "Select some text on the page first, then try again."
   },
   "errorNoPageContent": {
-    "message": "Couldn't read enough text from this page."
+    "message": "This page did not expose enough readable text for Citepane to use."
   },
   "errorNoEvidence": {
-    "message": "No solid evidence from the page or the web—can't ground this action."
+    "message": "Not enough solid evidence from the page or the web to ground this action. Try another selection or page."
   },
   "errorSearchFailed": {
-    "message": "Web search failed, so this grounded action couldn't run."
+    "message": "Web search failed, so Citepane could not gather evidence for this action."
   },
   "errorApi": {
-    "message": "The API request failed."
+    "message": "The request to your API failed. Check Settings and try again."
   },
   "uiResponseLanguageAuto": {
-    "message": "Match browser"
+    "message": "Same as browser"
   },
   "uiActions": {
-    "message": "Pick an action"
+    "message": "What do you want to do?"
   }
 }

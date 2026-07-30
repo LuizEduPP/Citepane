@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Selecione texto, execute ações de IA e veja respostas fundamentadas no painel lateral—o seu modelo, o seu endpoint."
+    "message": "Selecione texto, use IA no painel lateral e obtenha respostas fundamentadas na página e na web—com o seu modelo."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -66,10 +66,10 @@
     "message": "Definições"
   },
   "uiGithubProfile": {
-    "message": "GitHub — {{HANDLE}}"
+    "message": "Abrir {{HANDLE}} no GitHub"
   },
   "uiBaseUrl": {
-    "message": "URL base da API"
+    "message": "URL base da API (compatível com OpenAI)"
   },
   "uiModel": {
     "message": "Modelo"
@@ -81,16 +81,16 @@
     "message": "Carregar modelos"
   },
   "uiModelLoadFailed": {
-    "message": "Não foi possível carregar os modelos desse URL base."
+    "message": "Não foi possível listar os modelos desse URL base. Verifique o endereço e a permissão de anfitrião."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Indique o URL base antes de carregar os modelos."
+    "message": "Indique primeiro o URL base da API; depois carregue os modelos disponíveis."
   },
   "uiModelsLoaded": {
-    "message": "Modelos prontos"
+    "message": "Modelos carregados com sucesso"
   },
   "uiApiKey": {
-    "message": "Chave da API (opcional)"
+    "message": "Chave da API (opcional em servidores locais)"
   },
   "uiResponseLanguage": {
     "message": "Idioma da resposta"
@@ -99,13 +99,13 @@
     "message": "Idioma da interface"
   },
   "uiUiLanguageAuto": {
-    "message": "Igual ao navegador"
+    "message": "Igual ao do navegador"
   },
   "uiTheme": {
     "message": "Tema"
   },
   "uiThemeAuto": {
-    "message": "Igual ao sistema"
+    "message": "Igual ao do sistema"
   },
   "uiThemeLight": {
     "message": "Claro"
@@ -123,45 +123,45 @@
     "message": "Copiado"
   },
   "uiSelection": {
-    "message": "Texto selecionado"
+    "message": "A sua seleção"
   },
   "uiSources": {
-    "message": "Fontes"
+    "message": "Fontes usadas"
   },
   "uiResult": {
     "message": "Resposta"
   },
   "uiLoading": {
-    "message": "A trabalhar…"
+    "message": "A trabalhar nisso…"
   },
   "uiCancel": {
     "message": "Parar"
   },
   "uiIdle": {
-    "message": "Selecione texto numa página—aparece aqui. Depois clique com o botão direito em Citepane e escolha uma ação."
+    "message": "Selecione texto numa página e ele aparece aqui. Depois escolha uma ação neste painel para explicar, resumir, traduzir, procurar média e mais."
   },
   "uiSaved": {
-    "message": "Guardado"
+    "message": "Definições guardadas"
   },
   "errorNoSelection": {
-    "message": "Selecione texto primeiro."
+    "message": "Selecione texto na página primeiro e tente novamente."
   },
   "errorNoPageContent": {
-    "message": "Não foi possível ler texto suficiente nesta página."
+    "message": "Esta página não expôs texto legível suficiente para o Citepane utilizar."
   },
   "errorNoEvidence": {
-    "message": "Sem evidência sólida da página ou da web—não é possível fundamentar esta ação."
+    "message": "Não há evidência sólida suficiente da página ou da web para fundamentar esta ação. Tente outra seleção ou página."
   },
   "errorSearchFailed": {
-    "message": "A pesquisa na web falhou, por isso esta ação fundamentada não pôde ser executada."
+    "message": "A pesquisa na web falhou, por isso o Citepane não conseguiu reunir evidências para esta ação."
   },
   "errorApi": {
-    "message": "O pedido à API falhou."
+    "message": "O pedido à sua API falhou. Verifique as Definições e tente novamente."
   },
   "uiResponseLanguageAuto": {
-    "message": "Igual ao navegador"
+    "message": "Igual ao do navegador"
   },
   "uiActions": {
-    "message": "Escolha uma ação"
+    "message": "O que quer fazer?"
   }
 }

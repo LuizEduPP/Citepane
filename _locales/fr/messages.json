@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Sélectionnez du texte, lancez des actions IA et obtenez des réponses sourcées dans le panneau latéral—votre modèle, votre endpoint."
+    "message": "Sélectionnez du texte, lancez l’IA dans le panneau latéral et obtenez des réponses sourcées—avec votre modèle."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -66,10 +66,10 @@
     "message": "Paramètres"
   },
   "uiGithubProfile": {
-    "message": "GitHub — {{HANDLE}}"
+    "message": "Ouvrir {{HANDLE}} sur GitHub"
   },
   "uiBaseUrl": {
-    "message": "URL de base de l’API"
+    "message": "URL de base de l’API (compatible OpenAI)"
   },
   "uiModel": {
     "message": "Modèle"
@@ -81,16 +81,16 @@
     "message": "Charger les modèles"
   },
   "uiModelLoadFailed": {
-    "message": "Impossible de charger les modèles depuis cette URL de base."
+    "message": "Impossible de lister les modèles depuis cette URL de base. Vérifiez l’adresse et l’autorisation d’hôte."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Ajoutez une URL de base avant de charger les modèles."
+    "message": "Indiquez d’abord l’URL de base de l’API, puis chargez les modèles disponibles."
   },
   "uiModelsLoaded": {
-    "message": "Modèles prêts"
+    "message": "Modèles chargés avec succès"
   },
   "uiApiKey": {
-    "message": "Clé API (optionnelle)"
+    "message": "Clé API (optionnelle pour les serveurs locaux)"
   },
   "uiResponseLanguage": {
     "message": "Langue de la réponse"
@@ -123,10 +123,10 @@
     "message": "Copié"
   },
   "uiSelection": {
-    "message": "Texte sélectionné"
+    "message": "Votre sélection"
   },
   "uiSources": {
-    "message": "Sources"
+    "message": "Sources utilisées"
   },
   "uiResult": {
     "message": "Réponse"
@@ -138,30 +138,30 @@
     "message": "Arrêter"
   },
   "uiIdle": {
-    "message": "Sélectionnez du texte sur une page—il apparaît ici. Puis clic droit sur Citepane et choisissez une action."
+    "message": "Sélectionnez du texte sur une page : il apparaît ici. Puis choisissez une action dans ce panneau pour expliquer, résumer, traduire, trouver des médias et plus."
   },
   "uiSaved": {
-    "message": "Enregistré"
+    "message": "Paramètres enregistrés"
   },
   "errorNoSelection": {
-    "message": "Sélectionnez d’abord du texte."
+    "message": "Sélectionnez d’abord du texte sur la page, puis réessayez."
   },
   "errorNoPageContent": {
-    "message": "Impossible de lire assez de texte sur cette page."
+    "message": "Cette page n’a pas fourni assez de texte lisible pour Citepane."
   },
   "errorNoEvidence": {
-    "message": "Pas de preuves solides (page ou web)—impossible de fonder cette action."
+    "message": "Pas assez de preuves solides (page ou web) pour fonder cette action. Essayez une autre sélection ou page."
   },
   "errorSearchFailed": {
-    "message": "La recherche web a échoué ; cette action fondée n’a pas pu s’exécuter."
+    "message": "La recherche web a échoué : Citepane n’a pas pu rassembler de preuves pour cette action."
   },
   "errorApi": {
-    "message": "La requête API a échoué."
+    "message": "La requête vers votre API a échoué. Vérifiez les Paramètres et réessayez."
   },
   "uiResponseLanguageAuto": {
     "message": "Comme le navigateur"
   },
   "uiActions": {
-    "message": "Choisissez une action"
+    "message": "Que voulez-vous faire ?"
   }
 }

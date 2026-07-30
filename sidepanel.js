@@ -1185,11 +1185,15 @@ function renderActionGroupPanel(group) {
     const select = document.createElement('select');
     select.id = 'translate-language';
     select.setAttribute('aria-label', uiMessage('menuGroupTranslate'));
+    const preferred = resolveResponseLanguage(currentSettings.responseLanguage);
     for (const language of LANGUAGES) {
       const option = document.createElement('option');
       option.value = language.code;
       option.textContent = language.label;
       select.append(option);
+    }
+    if (LANGUAGE_BY_CODE[preferred]) {
+      select.value = preferred;
     }
 
     const button = document.createElement('button');

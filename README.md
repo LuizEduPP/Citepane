@@ -1,53 +1,55 @@
 # Citepane
 
-**Selected text → grounded AI in the Chrome side panel.**
+**Highlight text → grounded answers in the Chrome side panel.**
 
-Citepane is a Chromium MV3 extension: highlight text on any page, pick an action, and get an answer in the side panel—backed by your own OpenAI-compatible API (Ollama, LM Studio, or cloud). Research actions ground replies in page context plus DuckDuckGo; writing and translate run on the selection; images/videos open a quick gallery (no LLM).
+Citepane is a Chromium MV3 extension. Select text on any page, pick an action, and read the result beside the page—backed by **your** OpenAI-compatible API (Ollama, LM Studio, or cloud). Research actions combine page context with DuckDuckGo evidence; writing and translate work on the selection; images and videos open a quick gallery without calling the LLM.
 
 ## Features
 
 - **Research** — Explain, Define, Fact-check, Pros & cons (page + web evidence)
 - **Sources** — Find images / Find videos (DuckDuckGo gallery)
 - **Writing** — Summarize, Summarize page, Key points, Simplify, Improve writing, Improve prompt
-- **Translate** — Target-language submenu
-- **Side panel UX** — Live selection, cancel while running, Markdown results, copy, light/dark/auto theme
-- **Local-first** — You bring the model endpoint; no Citepane cloud
+- **Translate** — Choose a target language from the submenu
+- **Side panel** — Live selection preview, cancel in flight, Markdown answers, copy, light/dark/auto theme
+- **Local-first** — You own the model endpoint; Citepane has no cloud backend
 
 ## Requirements
 
-- Chromium browser with Side Panel (Chrome, Edge, Brave, …)
-- An OpenAI-compatible `/v1` API (optional for image/video-only use)
+- A Chromium browser with Side Panel (Chrome, Edge, Brave, …)
+- An OpenAI-compatible `/v1` API (optional if you only use image/video search)
 
 ## Install (unpacked)
 
-1. Open `chrome://extensions` (or the equivalent in your browser).
+1. Open `chrome://extensions` (or your browser’s equivalent).
 2. Enable **Developer mode**.
-3. **Load unpacked** → select this repository folder.
+3. **Load unpacked** → choose this repository folder.
 4. Pin Citepane and open the side panel from the toolbar.
 
 ## Configure
 
-1. Side panel → **Settings**.
-2. Set **Base URL** (examples):
+1. Open the side panel → **Settings**.
+2. Set **API base URL** (examples):
    - Ollama: `http://127.0.0.1:11434/v1`
    - LM Studio: `http://127.0.0.1:1234/v1`
-3. **Refresh** models → pick a **Model** → optional **API key** → **Save**.
-4. Remote hosts prompt for optional host permission on Refresh/Save.
+3. **Load models** → pick a **Model** → optional **API key** → **Save**.
+4. Remote hosts ask for optional host permission when you Load models or Save.
 
 | Setting | Default |
 |---------|---------|
-| Base URL | empty (required for chat actions) |
+| API base URL | empty (required for chat actions) |
 | Model | empty (loaded from `{Base URL}/models`) |
-| API key | empty (fine for local servers) |
-| Response language | `auto` |
-| UI language | `auto` (`en`, `pt-BR`, `pt-PT`, `es`, `fr`, `de`) |
+| API key | empty (usually fine for local servers) |
+| Answer language | `auto` |
+| Interface language | `auto` (`en`, `pt-BR`, `pt-PT`, `es`, `fr`, `de`) |
 | Theme | `auto` / `light` / `dark` |
 
 ## Use
 
-1. Select text on a web page (or use **Summarize page** with no selection).
-2. Right-click → **Citepane** → choose an action, **or** use the action tabs in the side panel.
-3. Read the answer in the panel. Cancel stops search/inference in progress.
+1. Select text on a page (or run **Summarize page** with no selection).
+2. In the side panel, pick an action—or right-click → **Citepane** → choose an action.
+3. Read the answer in the panel. **Stop** cancels search or inference in progress.
+
+Hover an action tab or button to see a short description of what it does.
 
 ## Architecture
 
@@ -64,7 +66,7 @@ Vanilla JS, no build step.
 | `_locales/` | Extension strings |
 | `vendor/` | marked + DOMPurify |
 
-Grounded research uses page context and DuckDuckGo. If search fails but the page still has usable context, the action continues with page evidence only.
+Grounded research uses page context and DuckDuckGo. If search fails but the page still has usable text, the action continues with page evidence only.
 
 ## Privacy
 

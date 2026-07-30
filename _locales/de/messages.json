@@ -3,7 +3,7 @@
     "message": "Citepane"
   },
   "extDescription": {
-    "message": "Text markieren, KI-Aktionen starten und belegte Antworten im Seitenpanel erhalten—dein Modell, dein Endpoint."
+    "message": "Text markieren, KI im Seitenpanel nutzen und belegte Antworten von Seite und Web erhalten—mit deinem Modell."
   },
   "menuRoot": {
     "message": "Citepane"
@@ -66,10 +66,10 @@
     "message": "Einstellungen"
   },
   "uiGithubProfile": {
-    "message": "GitHub — {{HANDLE}}"
+    "message": "{{HANDLE}} auf GitHub öffnen"
   },
   "uiBaseUrl": {
-    "message": "API-Basis-URL"
+    "message": "API-Basis-URL (OpenAI-kompatibel)"
   },
   "uiModel": {
     "message": "Modell"
@@ -81,16 +81,16 @@
     "message": "Modelle laden"
   },
   "uiModelLoadFailed": {
-    "message": "Modelle von dieser Basis-URL konnten nicht geladen werden."
+    "message": "Modelle von dieser Basis-URL konnten nicht geladen werden. Adresse und Host-Berechtigung prüfen."
   },
   "uiModelNeedBaseUrl": {
-    "message": "Zuerst eine Basis-URL angeben, dann Modelle laden."
+    "message": "Zuerst die API-Basis-URL eintragen, dann verfügbare Modelle laden."
   },
   "uiModelsLoaded": {
-    "message": "Modelle bereit"
+    "message": "Modelle erfolgreich geladen"
   },
   "uiApiKey": {
-    "message": "API-Schlüssel (optional)"
+    "message": "API-Schlüssel (optional bei lokalen Servern)"
   },
   "uiResponseLanguage": {
     "message": "Antwortsprache"
@@ -123,45 +123,45 @@
     "message": "Kopiert"
   },
   "uiSelection": {
-    "message": "Ausgewählter Text"
+    "message": "Deine Auswahl"
   },
   "uiSources": {
-    "message": "Quellen"
+    "message": "Verwendete Quellen"
   },
   "uiResult": {
     "message": "Antwort"
   },
   "uiLoading": {
-    "message": "Arbeitet…"
+    "message": "Arbeitet daran…"
   },
   "uiCancel": {
     "message": "Stoppen"
   },
   "uiIdle": {
-    "message": "Text auf einer Seite markieren—er erscheint hier. Dann Rechtsklick auf Citepane und eine Aktion wählen."
+    "message": "Markiere Text auf einer Seite—er erscheint hier. Dann wähle in diesem Panel eine Aktion zum Erklären, Zusammenfassen, Übersetzen, Medien finden und mehr."
   },
   "uiSaved": {
-    "message": "Gespeichert"
+    "message": "Einstellungen gespeichert"
   },
   "errorNoSelection": {
-    "message": "Zuerst Text markieren."
+    "message": "Zuerst Text auf der Seite markieren und erneut versuchen."
   },
   "errorNoPageContent": {
-    "message": "Auf dieser Seite konnte nicht genug Text gelesen werden."
+    "message": "Diese Seite hat nicht genug lesbaren Text für Citepane freigegeben."
   },
   "errorNoEvidence": {
-    "message": "Keine solide Evidenz von Seite oder Web—diese Aktion lässt sich nicht belegen."
+    "message": "Zu wenig solide Evidenz von Seite oder Web, um diese Aktion zu belegen. Andere Auswahl oder Seite versuchen."
   },
   "errorSearchFailed": {
-    "message": "Websuche fehlgeschlagen; diese belegte Aktion konnte nicht laufen."
+    "message": "Die Websuche ist fehlgeschlagen; Citepane konnte keine Evidenz für diese Aktion sammeln."
   },
   "errorApi": {
-    "message": "Die API-Anfrage ist fehlgeschlagen."
+    "message": "Die Anfrage an deine API ist fehlgeschlagen. Einstellungen prüfen und erneut versuchen."
   },
   "uiResponseLanguageAuto": {
     "message": "Wie Browser"
   },
   "uiActions": {
-    "message": "Aktion wählen"
+    "message": "Was möchtest du tun?"
   }
 }
