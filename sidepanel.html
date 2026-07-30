@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Citepane</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <img src="icons/icon-32.png" width="24" height="24" alt="" />
+        <h1 data-i18n="extName">Citepane</h1>
+      </div>
+      <button type="button" id="copy-btn" class="ghost" data-i18n="uiCopy" hidden>Copy</button>
+    </header>
+
+    <main>
+      <p id="idle" class="muted" data-i18n="uiIdle"></p>
+
+      <section id="job" hidden>
+        <p id="action-label" class="eyebrow"></p>
+        <h2 data-i18n="uiSelection">Selection</h2>
+        <pre id="selection" class="block"></pre>
+
+        <div id="sources-wrap" hidden>
+          <h2 data-i18n="uiSources">Sources</h2>
+          <ul id="sources"></ul>
+        </div>
+
+        <h2 data-i18n="uiResult">Result</h2>
+        <p id="status" class="muted"></p>
+        <pre id="result" class="block result"></pre>
+        <p id="error" class="error" hidden></p>
+      </section>
+    </main>
+
+    <details class="settings">
+      <summary data-i18n="uiSettings">Settings</summary>
+      <form id="settings-form">
+        <label>
+          <span data-i18n="uiBaseUrl">Base URL</span>
+          <input id="base-url" name="baseUrl" type="url" required autocomplete="off" />
+        </label>
+        <label>
+          <span data-i18n="uiModel">Model</span>
+          <input id="model" name="model" type="text" required autocomplete="off" />
+        </label>
+        <label>
+          <span data-i18n="uiApiKey">API key (optional)</span>
+          <input id="api-key" name="apiKey" type="password" autocomplete="off" />
+        </label>
+        <label>
+          <span data-i18n="uiResponseLanguage">Response language</span>
+          <select id="response-language" name="responseLanguage"></select>
+        </label>
+        <label>
+          <span data-i18n="uiUiLanguage">UI language</span>
+          <select id="ui-language" name="uiLanguage"></select>
+        </label>
+        <button type="submit" data-i18n="uiSave">Save</button>
+        <p id="settings-feedback" class="muted" hidden></p>
+      </form>
+    </details>
+
+    <script src="defaults.js"></script>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

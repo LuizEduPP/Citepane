@@ -1,0 +1,277 @@
+importScripts('defaults.js', 'search.js');
+
+function t(key) {
+  const message = chrome.i18n.getMessage(key);
+  if (!message) {
+    throw new Error(`Missing i18n message: ${key}`);
+  }
+  return message;
+}
+
+async function readSettings() {
+  const stored = await chrome.storage.sync.get(STORAGE_SETTINGS_KEY);
+  return mergeSettings(stored[STORAGE_SETTINGS_KEY]);
+}
+
+async function writePendingJob(job) {
+  await chrome.storage.session.set({ [STORAGE_PENDING_JOB_KEY]: job });
+  try {
+    await chrome.runtime.sendMessage({ type: MESSAGE_JOB_UPDATED, job });
+  } catch {
+    // Side panel may be closed.
+  }
+}
+
+async function ensureContextMenus() {
+  await chrome.contextMenus.removeAll();
+
+  chrome.contextMenus.create({
+    id: EXT_PARENT_MENU_ID,
+    title: t('menuRoot'),
+    contexts: ['selection'],
+  });
+
+  const translateAfterId = 'simplify';
+
+  for (const action of ACTIONS) {
+    chrome.contextMenus.create({
+      id: action.id,
+      parentId: EXT_PARENT_MENU_ID,
+      title: t(action.titleKey),
+      contexts: ['selection'],
+    });
+
+    if (action.id === translateAfterId) {
+      chrome.contextMenus.create({
+        id: TRANSLATE_PARENT_MENU_ID,
+        parentId: EXT_PARENT_MENU_ID,
+        title: t('actionTranslate'),
+        contexts: ['selection'],
+      });
+
+      for (const language of LANGUAGES) {
+        chrome.contextMenus.create({
+          id: `${TRANSLATE_ACTION_PREFIX}${language.code}`,
+          parentId: TRANSLATE_PARENT_MENU_ID,
+          title: language.label,
+          contexts: ['selection'],
+        });
+      }
+    }
+  }
+}
+
+function emptyPageContext(tabUrl) {
+  return {
+    url: tabUrl || '',
+    title: '',
+    description: '',
+    excerpt: '',
+  };
+}
+
+async function requestPageContext(tabId, tabUrl) {
+  try {
+    const response = await chrome.tabs.sendMessage(tabId, {
+      type: MESSAGE_GET_PAGE_CONTEXT,
+    });
+    if (response?.ok && response.pageContext) {
+      return response.pageContext;
+    }
+  } catch {
+    // Fall through to executeScript.
+  }
+
+  try {
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const meta =
+          document.querySelector('meta[name="description"]') ||
+          document.querySelector('meta[property="og:description"]');
+        const selection = window.getSelection()?.toString() || '';
+        return {
+          url: location.href,
+          title: document.title || '',
+          description: meta?.getAttribute('content')?.trim() || '',
+          excerpt: selection.replace(/\s+/g, ' ').trim().slice(0, 2000),
+        };
+      },
+    });
+    if (result) {
+      return result;
+    }
+  } catch {
+    // Restricted pages (chrome://, Web Store, etc.).
+  }
+
+  return emptyPageContext(tabUrl);
+}
+
+async function ensureHostPermission(baseUrl) {
+  if (isLocalApiHost(baseUrl)) {
+    return;
+  }
+
+  const origin = `${new URL(normalizeBaseUrl(baseUrl)).origin}/*`;
+  const already = await chrome.permissions.contains({ origins: [origin] });
+  if (already) {
+    return;
+  }
+
+  const granted = await chrome.permissions.request({ origins: [origin] });
+  if (!granted) {
+    throw new Error(`Host permission denied for ${origin}`);
+  }
+}
+
+async function openSidePanel(tabId) {
+  if (typeof chrome.sidePanel?.open !== 'function') {
+    throw new Error('sidePanel.open is unavailable in this browser');
+  }
+
+  await chrome.sidePanel.open({ tabId });
+}
+
+async function handleActionClick(actionId, selectionText, tab) {
+  if (!tab?.id) {
+    throw new Error('Active tab is required');
+  }
+
+  const trimmed = typeof selectionText === 'string' ? selectionText.trim() : '';
+  if (!trimmed) {
+    throw new Error(t('errorNoSelection'));
+  }
+
+  const action = resolveAction(actionId);
+  const settings = await readSettings();
+  const createdAt = Date.now();
+
+  const loadingJob = {
+    actionId: action.id,
+    actionTitleKey: action.titleKey,
+    selectionText: trimmed,
+    pageContext: null,
+    evidence: [],
+    responseLanguage: settings.responseLanguage,
+    targetLanguage: action.targetLanguage || null,
+    status: 'loading',
+    error: null,
+    createdAt,
+  };
+  await writePendingJob(loadingJob);
+  await openSidePanel(tab.id);
+
+  try {
+    const pageContext = await requestPageContext(tab.id, tab.url);
+    let evidence = [];
+
+    if (action.needsGrounding) {
+      try {
+        evidence = await searchDuckDuckGo(trimmed);
+      } catch (error) {
+        throw new Error(
+          `${t('errorSearchFailed')} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      if (!evidenceIsUsable(pageContext, evidence)) {
+        throw new Error(t('errorNoEvidence'));
+      }
+    }
+
+    await writePendingJob({
+      ...loadingJob,
+      pageContext,
+      evidence,
+      status: 'ready',
+      error: null,
+    });
+  } catch (error) {
+    await writePendingJob({
+      ...loadingJob,
+      status: 'error',
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
+  await ensureContextMenus();
+  await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  await ensureContextMenus();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'sync' || !changes[STORAGE_SETTINGS_KEY]) {
+    return;
+  }
+
+  ensureContextMenus().catch((error) => {
+    console.error('Failed to rebuild context menus', error);
+  });
+});
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  const actionId = info.menuItemId;
+  if (
+    actionId === EXT_PARENT_MENU_ID ||
+    actionId === TRANSLATE_PARENT_MENU_ID
+  ) {
+    return;
+  }
+
+  handleActionClick(String(actionId), info.selectionText || '', tab).catch(async (error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    await writePendingJob({
+      actionId: String(actionId),
+      actionTitleKey: null,
+      selectionText: info.selectionText || '',
+      pageContext: null,
+      evidence: [],
+      responseLanguage: DEFAULT_RESPONSE_LANGUAGE,
+      targetLanguage: null,
+      status: 'error',
+      error: message,
+      createdAt: Date.now(),
+    });
+    if (tab?.id) {
+      try {
+        await openSidePanel(tab.id);
+      } catch (openError) {
+        console.error('Failed to open side panel', openError);
+      }
+    }
+  });
+});
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'ENSURE_HOST_PERMISSION') {
+    ensureHostPermission(message.baseUrl)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === 'REBUILD_MENUS') {
+    ensureContextMenus()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  return false;
+});
