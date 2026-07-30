@@ -44,7 +44,12 @@
         </label>
         <label>
           <span data-i18n="uiModel">Model</span>
-          <input id="model" name="model" type="text" required autocomplete="off" />
+          <div class="model-row">
+            <select id="model" name="model" required></select>
+            <button type="button" id="refresh-models" class="ghost" data-i18n="uiRefreshModels">
+              Refresh
+            </button>
+          </div>
         </label>
         <label>
           <span data-i18n="uiApiKey">API key (optional)</span>

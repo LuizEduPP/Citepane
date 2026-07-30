@@ -26,6 +26,7 @@ const els = {
   form: document.getElementById('settings-form'),
   baseUrl: document.getElementById('base-url'),
   model: document.getElementById('model'),
+  refreshModels: document.getElementById('refresh-models'),
   apiKey: document.getElementById('api-key'),
   responseLanguage: document.getElementById('response-language'),
   uiLanguage: document.getElementById('ui-language'),
@@ -101,12 +102,92 @@ function fillLanguageSelects() {
   }
 }
 
+function fillModelSelect(modelIds, selectedModel) {
+  const ids = [...new Set(modelIds.filter(Boolean))];
+  if (selectedModel && !ids.includes(selectedModel)) {
+    ids.unshift(selectedModel);
+  }
+  ids.sort((a, b) => a.localeCompare(b));
+
+  els.model.replaceChildren();
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = uiMessage('uiModelPlaceholder');
+  if (!selectedModel) {
+    placeholder.selected = true;
+  }
+  els.model.append(placeholder);
+
+  for (const id of ids) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = id;
+    if (id === selectedModel) {
+      option.selected = true;
+    }
+    els.model.append(option);
+  }
+}
+
+async function fetchAvailableModels(baseUrl, apiKey) {
+  await ensureApiPermission(baseUrl);
+
+  const headers = {};
+  if (typeof apiKey === 'string' && apiKey.trim()) {
+    headers.Authorization = `Bearer ${apiKey.trim()}`;
+  }
+
+  const response = await fetch(modelsUrl(baseUrl), { headers });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${uiMessage('uiModelLoadFailed')} HTTP ${response.status}: ${body.slice(0, 200)}`);
+  }
+
+  const payload = await response.json();
+  const list = Array.isArray(payload?.data) ? payload.data : [];
+  return list
+    .map((item) => (typeof item?.id === 'string' ? item.id.trim() : ''))
+    .filter(Boolean);
+}
+
+async function refreshModelOptions({ quiet = false } = {}) {
+  const baseUrl = els.baseUrl.value.trim();
+  const selected = els.model.value || currentSettings.model;
+
+  if (!baseUrl) {
+    fillModelSelect([], selected);
+    if (!quiet) {
+      els.settingsFeedback.hidden = false;
+      els.settingsFeedback.textContent = uiMessage('uiModelNeedBaseUrl');
+    }
+    return;
+  }
+
+  els.refreshModels.disabled = true;
+  try {
+    const ids = await fetchAvailableModels(baseUrl, els.apiKey.value);
+    fillModelSelect(ids, selected);
+    if (!quiet) {
+      els.settingsFeedback.hidden = false;
+      els.settingsFeedback.textContent = uiMessage('uiModelsLoaded');
+    }
+  } catch (error) {
+    fillModelSelect([], selected);
+    if (!quiet) {
+      els.settingsFeedback.hidden = false;
+      els.settingsFeedback.textContent = error instanceof Error ? error.message : String(error);
+    }
+  } finally {
+    els.refreshModels.disabled = false;
+  }
+}
+
 function paintSettingsForm(settings) {
   els.baseUrl.value = settings.baseUrl;
-  els.model.value = settings.model;
   els.apiKey.value = settings.apiKey;
   els.responseLanguage.value = settings.responseLanguage;
   els.uiLanguage.value = settings.uiLanguage;
+  fillModelSelect(settings.model ? [settings.model] : [], settings.model);
 }
 
 async function persistSettings(settings) {
@@ -410,6 +491,14 @@ async function loadPendingJob() {
   await runJob(job);
 }
 
+els.refreshModels.addEventListener('click', () => {
+  refreshModelOptions({ quiet: false }).catch(() => {});
+});
+
+els.baseUrl.addEventListener('change', () => {
+  refreshModelOptions({ quiet: true }).catch(() => {});
+});
+
 els.form.addEventListener('submit', async (event) => {
   event.preventDefault();
   els.settingsFeedback.hidden = true;
@@ -427,6 +516,9 @@ els.form.addEventListener('submit', async (event) => {
     applyStaticI18n();
     fillLanguageSelects();
     paintSettingsForm(next);
+    if (next.baseUrl.trim()) {
+      await refreshModelOptions({ quiet: true });
+    }
 
     els.settingsFeedback.hidden = false;
     els.settingsFeedback.textContent = uiMessage('uiSaved');
@@ -467,6 +559,9 @@ async function init() {
   applyStaticI18n();
   fillLanguageSelects();
   paintSettingsForm(currentSettings);
+  if (currentSettings.baseUrl.trim()) {
+    await refreshModelOptions({ quiet: true });
+  }
   await loadPendingJob();
 }
 

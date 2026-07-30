@@ -6,8 +6,8 @@ const STORAGE_SETTINGS_KEY = 'settings';
 const STORAGE_PENDING_JOB_KEY = 'pendingJob';
 const STORAGE_LAST_RESULT_KEY = 'lastResult';
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:11434/v1';
-const DEFAULT_MODEL = 'llama3.2';
+const DEFAULT_BASE_URL = '';
+const DEFAULT_MODEL = '';
 const DEFAULT_API_KEY = '';
 const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
@@ -290,6 +290,10 @@ function isLocalApiHost(baseUrl) {
 
 function chatCompletionsUrl(baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}/chat/completions`;
+}
+
+function modelsUrl(baseUrl) {
+  return `${normalizeBaseUrl(baseUrl)}/models`;
 }
 
 function truncateText(text, maxChars) {

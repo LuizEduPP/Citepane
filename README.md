@@ -9,9 +9,9 @@ OpenAI-compatible backend (Ollama, LM Studio, cloud). Vanilla MV3, no build.
 1. Open `chrome://extensions` (or Edge/Brave equivalent).
 2. Enable **Developer mode**.
 3. **Load unpacked** → this folder (`033-citepane`).
-4. Start a local server if needed:
-   - Ollama default: `http://127.0.0.1:11434/v1`
-   - LM Studio default: `http://127.0.0.1:1234/v1`
+4. Start a local server if needed (examples):
+   - Ollama: `http://127.0.0.1:11434/v1`
+   - LM Studio: `http://127.0.0.1:1234/v1`
 5. Open the side panel (toolbar icon) → **Settings** → set Base URL, Model, optional API key, languages → **Save**.
 
 ## Use
@@ -36,8 +36,8 @@ Grounded actions fail fast if search/page evidence is unusable — the model is 
 
 | Key | Default |
 |-----|---------|
-| Base URL | `http://127.0.0.1:11434/v1` |
-| Model | `llama3.2` |
+| Base URL | empty (set in Settings; e.g. Ollama `http://127.0.0.1:11434/v1`) |
+| Model | empty select — loaded from `{Base URL}/models` |
 | API key | empty (ok for local) |
 | Response language | `auto` (browser UI language) |
 | UI language | `auto` (browser) / `en` `pt-BR` `pt-PT` `es` `fr` `de` |

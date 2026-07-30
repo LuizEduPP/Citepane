@@ -56,6 +56,21 @@
   "uiModel": {
     "message": "Modèle"
   },
+  "uiModelPlaceholder": {
+    "message": "Sélectionnez un modèle"
+  },
+  "uiRefreshModels": {
+    "message": "Actualiser"
+  },
+  "uiModelLoadFailed": {
+    "message": "Impossible de charger les modèles depuis l’URL de base."
+  },
+  "uiModelNeedBaseUrl": {
+    "message": "Définissez l’URL de base avant de charger les modèles."
+  },
+  "uiModelsLoaded": {
+    "message": "Modèles chargés"
+  },
   "uiApiKey": {
     "message": "Clé API (optionnelle)"
   },
