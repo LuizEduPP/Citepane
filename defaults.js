@@ -95,26 +95,16 @@ const ACTIONS = Object.freeze([
     titleKey: 'actionFindImages',
     needsGrounding: true,
     searchKind: 'images',
-    resultMode: 'media-tooltips',
-    systemPrompt:
-      'Annotate each numbered IMAGE EVIDENCE item for the user selection. ' +
-      'Reply with ONLY a JSON array and nothing else (no markdown, no prose): ' +
-      '[{"i":1,"caption":"short relevance note"},{"i":2,"caption":"..."}]. ' +
-      'Include every evidence index. Each caption max 16 words. ' +
-      'Do not invent images that are not in the evidence.',
+    resultMode: 'media-gallery',
+    skipInference: true,
   }),
   Object.freeze({
     id: 'find-videos',
     titleKey: 'actionFindVideos',
     needsGrounding: true,
     searchKind: 'videos',
-    resultMode: 'media-tooltips',
-    systemPrompt:
-      'Annotate each numbered VIDEO EVIDENCE item for the user selection. ' +
-      'Reply with ONLY a JSON array and nothing else (no markdown, no prose): ' +
-      '[{"i":1,"caption":"short relevance note"},{"i":2,"caption":"..."}]. ' +
-      'Include every evidence index. Each caption max 16 words. ' +
-      'Do not invent videos that are not in the evidence.',
+    resultMode: 'media-gallery',
+    skipInference: true,
   }),
   Object.freeze({
     id: 'pros-cons',

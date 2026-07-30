@@ -275,60 +275,17 @@ function clearGeneratedOutput({ clearJobStorage = true } = {}) {
   stopCurrentWork({ removeKeys: [STORAGE_LAST_RESULT_KEY] });
 }
 
-function isMediaTooltipAction(action) {
-  return action?.resultMode === 'media-tooltips';
+function isMediaGalleryAction(action) {
+  return action?.resultMode === 'media-gallery' || action?.skipInference === true;
 }
 
-function parseMediaCaptions(text) {
-  if (typeof text !== 'string' || !text.trim()) {
-    return {};
-  }
-
-  const match = text.match(/\[[\s\S]*\]/);
-  if (!match) {
-    return {};
-  }
-
-  try {
-    const data = JSON.parse(match[0]);
-    if (!Array.isArray(data)) {
-      return {};
-    }
-    const captions = {};
-    for (const row of data) {
-      const index = Number(row?.i ?? row?.index);
-      const caption = typeof row?.caption === 'string' ? row.caption.trim() : '';
-      if (Number.isFinite(index) && index > 0 && caption) {
-        captions[index] = caption;
-      }
-    }
-    return captions;
-  } catch {
-    return {};
-  }
-}
-
-function mediaCopyText(evidence, captionsByIndex = {}) {
-  if (!Array.isArray(evidence)) {
-    return '';
-  }
-  return evidence
-    .map((item, index) => {
-      const caption = captionsByIndex[index + 1] || item.title || '';
-      const url = item.url || item.imageUrl || '';
-      return caption ? `${caption}\n${url}` : url;
-    })
-    .filter(Boolean)
-    .join('\n\n');
-}
-
-function renderMediaGallery(evidence, captionsByIndex = {}) {
+function renderMediaGallery(evidence) {
   renderSources([]);
   els.result.replaceChildren();
+  latestResultText = '';
+  setCopyAvailable(false);
 
   if (!Array.isArray(evidence) || evidence.length === 0) {
-    latestResultText = '';
-    setCopyAvailable(false);
     syncResultSection();
     return;
   }
@@ -336,8 +293,8 @@ function renderMediaGallery(evidence, captionsByIndex = {}) {
   const grid = document.createElement('div');
   grid.className = 'media-gallery';
 
-  evidence.forEach((item, index) => {
-    const caption = captionsByIndex[index + 1] || item.title || item.snippet || '';
+  evidence.forEach((item) => {
+    const caption = item.title || item.snippet || '';
     const href = item.url || item.imageUrl || '#';
     const thumb = item.thumbnail || item.imageUrl || '';
 
@@ -346,7 +303,6 @@ function renderMediaGallery(evidence, captionsByIndex = {}) {
     card.href = href;
     card.target = '_blank';
     card.rel = 'noreferrer noopener';
-    card.dataset.index = String(index + 1);
     if (caption) {
       card.title = caption;
       card.setAttribute('aria-label', caption);
@@ -378,28 +334,9 @@ function renderMediaGallery(evidence, captionsByIndex = {}) {
   });
 
   els.result.append(grid);
-  latestResultText = mediaCopyText(evidence, captionsByIndex);
-  setCopyAvailable(false);
   els.error.hidden = true;
   els.error.textContent = '';
   syncResultSection();
-}
-
-function applyMediaCaptions(captionsByIndex) {
-  const cards = els.result.querySelectorAll('.media-card[data-index]');
-  cards.forEach((card) => {
-    const index = Number(card.dataset.index);
-    const caption = captionsByIndex[index];
-    if (!caption) {
-      return;
-    }
-    card.title = caption;
-    card.setAttribute('aria-label', caption);
-    const img = card.querySelector('img');
-    if (img) {
-      img.alt = caption;
-    }
-  });
 }
 
 function fillLanguageSelects() {
@@ -638,7 +575,7 @@ function buildUserContent(job, action) {
 function buildMessages(job, action) {
   const systemParts = [action.systemPrompt];
 
-  if (!isTranslateActionId(action.id) && action.resultMode !== 'media-tooltips') {
+  if (!isTranslateActionId(action.id) && !isMediaGalleryAction(action)) {
     systemParts.push(MARKDOWN_FORMAT_RULE);
   }
   if (!isTranslateActionId(action.id)) {
@@ -932,10 +869,10 @@ async function runJob(job) {
   setActionsVisible(Boolean(selectionText));
   setInferenceBusy(true);
 
-  const mediaMode = action && isMediaTooltipAction(action);
+  const mediaMode = action && isMediaGalleryAction(action);
   if (mediaMode && Array.isArray(job.evidence) && job.evidence.length > 0) {
     renderMediaGallery(job.evidence);
-  } else {
+  } else if (!mediaMode) {
     renderSources(job.evidence);
   }
 
@@ -985,6 +922,16 @@ async function runJob(job) {
     return;
   }
 
+  // Images / videos: gallery only — no AI inference, no copy.
+  if (isMediaGalleryAction(action)) {
+    renderMediaGallery(job.evidence);
+    setStatus('');
+    setCopyAvailable(false);
+    setCancelAvailable(false);
+    setInferenceBusy(false);
+    return;
+  }
+
   setStatus(uiMessage('uiLoading'));
   els.error.hidden = true;
   els.error.textContent = '';
@@ -992,13 +939,9 @@ async function runJob(job) {
   setCancelAvailable(true);
   setInferenceBusy(true);
 
-  if (isMediaTooltipAction(action)) {
-    renderMediaGallery(job.evidence);
-  } else {
-    latestResultText = '';
-    els.result.replaceChildren();
-    syncResultSection();
-  }
+  latestResultText = '';
+  els.result.replaceChildren();
+  syncResultSection();
 
   if (jobIsCancelled(job)) {
     finishCancelledUi();
@@ -1007,7 +950,6 @@ async function runJob(job) {
 
   const controller = new AbortController();
   activeAbort = controller;
-  const streamMedia = isMediaTooltipAction(action);
 
   try {
     const messages = buildMessages(job, action);
@@ -1015,33 +957,22 @@ async function runJob(job) {
       settings: currentSettings,
       messages,
       signal: controller.signal,
-      onDelta: streamMedia
-        ? () => {}
-        : (delta) => {
-            if (jobIsCancelled(job) || seq !== runJobSeq) {
-              return;
-            }
-            setResultText(latestResultText + delta);
-          },
+      onDelta: (delta) => {
+        if (jobIsCancelled(job) || seq !== runJobSeq) {
+          return;
+        }
+        setResultText(latestResultText + delta);
+      },
     });
 
     if (jobIsCancelled(job) || seq !== runJobSeq) {
       return;
     }
 
-    if (streamMedia) {
-      const captions = parseMediaCaptions(full);
-      applyMediaCaptions(captions);
-      latestResultText = mediaCopyText(job.evidence, captions);
-      setCopyAvailable(true);
-      setStatus('');
-      await persistLastResult(job.actionId, latestResultText);
-    } else {
-      setResultText(full);
-      setCopyAvailable(true);
-      setStatus('');
-      await persistLastResult(job.actionId, full);
-    }
+    setResultText(full);
+    setCopyAvailable(true);
+    setStatus('');
+    await persistLastResult(job.actionId, full);
   } catch (error) {
     if (error?.name === 'AbortError' || jobIsCancelled(job)) {
       setStatus('');
