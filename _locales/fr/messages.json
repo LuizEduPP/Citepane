@@ -120,7 +120,7 @@
     "message": "Traitement…"
   },
   "uiIdle": {
-    "message": "Sélectionnez du texte, clic droit sur Citepane, choisissez une action."
+    "message": "Sélectionnez du texte sur une page pour l’aperçu ici, puis clic droit sur Citepane et choisissez une action."
   },
   "uiSaved": {
     "message": "Paramètres enregistrés"
@@ -139,5 +139,8 @@
   },
   "uiResponseLanguageAuto": {
     "message": "Auto (navigateur)"
+  },
+  "uiActions": {
+    "message": "Que voulez-vous faire ?"
   }
 }

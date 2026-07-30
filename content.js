@@ -42,6 +42,46 @@ function collectPageContext() {
   };
 }
 
+function readLiveSelectionText() {
+  const text = (window.getSelection()?.toString() || '').replace(/\s+/g, ' ').trim();
+  if (!text) {
+    return '';
+  }
+  return text.slice(0, LIVE_SELECTION_MAX_CHARS);
+}
+
+let lastPublishedSelection = null;
+let selectionPublishTimer = null;
+
+function publishLiveSelection() {
+  const selectionText = readLiveSelectionText();
+  if (selectionText === lastPublishedSelection) {
+    return;
+  }
+  lastPublishedSelection = selectionText;
+
+  chrome.runtime
+    .sendMessage({
+      type: MESSAGE_SELECTION_CHANGED,
+      selectionText,
+      pageUrl: location.href,
+    })
+    .catch(() => {
+      // Side panel / service worker may be asleep.
+    });
+}
+
+function scheduleLiveSelectionPublish() {
+  if (selectionPublishTimer) {
+    clearTimeout(selectionPublishTimer);
+  }
+  selectionPublishTimer = setTimeout(publishLiveSelection, 160);
+}
+
+document.addEventListener('selectionchange', scheduleLiveSelectionPublish);
+document.addEventListener('mouseup', scheduleLiveSelectionPublish);
+document.addEventListener('keyup', scheduleLiveSelectionPublish);
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || message.type !== MESSAGE_GET_PAGE_CONTEXT) {
     return false;

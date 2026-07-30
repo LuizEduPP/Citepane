@@ -11,18 +11,24 @@ let messageCatalog = null;
 let currentSettings = getDefaultSettings();
 let activeAbort = null;
 let latestResultText = '';
+let lastLiveSelection = '';
 
 const els = {
   idle: document.getElementById('idle'),
   job: document.getElementById('job'),
   actionLabel: document.getElementById('action-label'),
   selection: document.getElementById('selection'),
+  actionsWrap: document.getElementById('actions-wrap'),
+  actions: document.getElementById('actions'),
   sourcesWrap: document.getElementById('sources-wrap'),
   sources: document.getElementById('sources'),
+  resultWrap: document.getElementById('result-wrap'),
   status: document.getElementById('status'),
   result: document.getElementById('result'),
   error: document.getElementById('error'),
   copyBtn: document.getElementById('copy-btn'),
+  settingsBtn: document.getElementById('settings-btn'),
+  settingsPanel: document.getElementById('settings-panel'),
   form: document.getElementById('settings-form'),
   baseUrl: document.getElementById('base-url'),
   model: document.getElementById('model'),
@@ -73,8 +79,19 @@ function applyStaticI18n() {
     const key = node.getAttribute('data-i18n');
     node.textContent = uiMessage(key);
   });
+  document.querySelectorAll('[data-i18n-aria]').forEach((node) => {
+    const key = node.getAttribute('data-i18n-aria');
+    node.setAttribute('aria-label', uiMessage(key));
+    node.setAttribute('title', uiMessage(key));
+  });
   document.title = uiMessage('extName');
   document.documentElement.lang = resolveUiLocale(currentSettings.uiLanguage);
+  fillActionPicker();
+}
+
+function setSettingsOpen(open) {
+  els.settingsPanel.hidden = !open;
+  els.settingsBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function fillLanguageSelects() {
@@ -481,7 +498,11 @@ function setResultText(text) {
   latestResultText = text;
   if (!text) {
     els.result.replaceChildren();
+    if (els.error.hidden && !els.status.textContent) {
+      els.resultWrap.hidden = true;
+    }
   } else {
+    els.resultWrap.hidden = false;
     els.result.innerHTML = renderMarkdown(text);
     els.result.querySelectorAll('a[href]').forEach((anchor) => {
       anchor.setAttribute('target', '_blank');
@@ -491,17 +512,41 @@ function setResultText(text) {
   els.copyBtn.hidden = !text;
 }
 
+function clearGeneratedOutput({ clearJobStorage = true } = {}) {
+  if (activeAbort) {
+    activeAbort.abort();
+    activeAbort = null;
+  }
+
+  els.actionLabel.textContent = '';
+  els.status.textContent = '';
+  els.error.hidden = true;
+  els.error.textContent = '';
+  els.resultWrap.hidden = true;
+  setResultText('');
+  renderSources([]);
+
+  if (clearJobStorage) {
+    chrome.storage.session.remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY]).catch(() => {});
+  }
+}
+
 async function runJob(job) {
   if (activeAbort) {
     activeAbort.abort();
     activeAbort = null;
   }
 
+  const selectionText = (job.selectionText || '').trim();
+  lastLiveSelection = selectionText;
+
   els.idle.hidden = true;
   els.job.hidden = false;
   els.error.hidden = true;
   els.error.textContent = '';
-  els.selection.textContent = job.selectionText || '';
+  els.selection.textContent = selectionText;
+  setActionsVisible(Boolean(selectionText));
+  setActionsEnabled(false);
   renderSources(job.evidence);
 
   try {
@@ -514,34 +559,45 @@ async function runJob(job) {
   }
 
   if (job.status === 'loading') {
+    els.resultWrap.hidden = false;
     els.status.textContent = uiMessage('uiLoading');
-    setResultText('');
+    els.result.replaceChildren();
+    latestResultText = '';
+    els.copyBtn.hidden = true;
+    setActionsEnabled(false);
     return;
   }
 
   if (job.status === 'error') {
+    els.resultWrap.hidden = false;
     els.status.textContent = '';
     setResultText('');
     els.error.hidden = false;
     els.error.textContent = job.error || uiMessage('errorApi');
+    setActionsEnabled(true);
     return;
   }
 
   if (job.status !== 'ready') {
+    setActionsEnabled(true);
     return;
   }
 
   const action = resolveAction(job.actionId);
   if (action.needsGrounding && !evidenceIsUsable(job.pageContext, job.evidence)) {
+    els.resultWrap.hidden = false;
     els.status.textContent = '';
     setResultText('');
     els.error.hidden = false;
     els.error.textContent = uiMessage('errorNoEvidence');
+    setActionsEnabled(true);
     return;
   }
 
+  els.resultWrap.hidden = false;
   els.status.textContent = uiMessage('uiLoading');
   setResultText('');
+  setActionsEnabled(false);
 
   const controller = new AbortController();
   activeAbort = controller;
@@ -571,12 +627,14 @@ async function runJob(job) {
       return;
     }
     els.status.textContent = '';
+    els.resultWrap.hidden = false;
     els.error.hidden = false;
     els.error.textContent = error instanceof Error ? error.message : String(error);
   } finally {
     if (activeAbort === controller) {
       activeAbort = null;
     }
+    setActionsEnabled(true);
   }
 }
 
@@ -584,9 +642,6 @@ async function loadPendingJob() {
   const stored = await chrome.storage.session.get(STORAGE_PENDING_JOB_KEY);
   const job = stored[STORAGE_PENDING_JOB_KEY];
   if (!job) {
-    els.idle.hidden = false;
-    els.job.hidden = true;
-    els.copyBtn.hidden = true;
     return;
   }
   await runJob(job);
@@ -640,6 +695,10 @@ els.form.addEventListener('submit', async (event) => {
   }
 });
 
+els.settingsBtn.addEventListener('click', () => {
+  setSettingsOpen(els.settingsPanel.hidden);
+});
+
 els.copyBtn.addEventListener('click', async () => {
   if (!latestResultText) {
     return;
@@ -652,6 +711,167 @@ els.copyBtn.addEventListener('click', async () => {
   }, 1200);
 });
 
+function collapseActionGroups() {
+  els.actions.querySelectorAll('details.action-group').forEach((details) => {
+    details.open = false;
+  });
+}
+
+function fillActionPicker() {
+  els.actions.replaceChildren();
+
+  for (const group of ACTION_MENU_GROUPS) {
+    const details = document.createElement('details');
+    details.className = 'action-group';
+
+    const summary = document.createElement('summary');
+    summary.textContent = uiMessage(group.titleKey);
+    details.append(summary);
+
+    details.addEventListener('toggle', () => {
+      if (!details.open) {
+        return;
+      }
+      els.actions.querySelectorAll('details.action-group').forEach((other) => {
+        if (other !== details) {
+          other.open = false;
+        }
+      });
+    });
+
+    if (group.kind === 'translate') {
+      const row = document.createElement('div');
+      row.className = 'action-translate';
+
+      const select = document.createElement('select');
+      select.id = 'translate-language';
+      select.setAttribute('aria-label', uiMessage('menuGroupTranslate'));
+      for (const language of LANGUAGES) {
+        const option = document.createElement('option');
+        option.value = language.code;
+        option.textContent = language.label;
+        select.append(option);
+      }
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'primary';
+      button.textContent = uiMessage('menuGroupTranslate');
+      button.addEventListener('click', () => {
+        collapseActionGroups();
+        requestRunAction(`${TRANSLATE_ACTION_PREFIX}${select.value}`);
+      });
+
+      row.append(select, button);
+      details.append(row);
+      els.actions.append(details);
+      continue;
+    }
+
+    const chips = document.createElement('div');
+    chips.className = 'action-chips';
+    for (const actionId of group.actionIds) {
+      const action = ACTION_BY_ID[actionId];
+      if (!action) {
+        continue;
+      }
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.actionId = action.id;
+      button.textContent = uiMessage(action.titleKey);
+      button.addEventListener('click', () => {
+        collapseActionGroups();
+        requestRunAction(action.id);
+      });
+      chips.append(button);
+    }
+    details.append(chips);
+    els.actions.append(details);
+  }
+}
+
+function setActionsVisible(visible) {
+  els.actionsWrap.hidden = !visible;
+}
+
+function setActionsEnabled(enabled) {
+  els.actions.querySelectorAll('button, select').forEach((node) => {
+    node.disabled = !enabled;
+  });
+}
+
+async function requestRunAction(actionId) {
+  const selectionText = els.selection.textContent.trim();
+  if (!selectionText) {
+    els.resultWrap.hidden = false;
+    els.error.hidden = false;
+    els.error.textContent = uiMessage('errorNoSelection');
+    return;
+  }
+
+  els.error.hidden = true;
+  els.error.textContent = '';
+  setActionsEnabled(false);
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'RUN_ACTION',
+      actionId,
+      selectionText,
+    });
+    if (!response?.ok) {
+      throw new Error(response?.error || uiMessage('errorApi'));
+    }
+  } catch (error) {
+    els.resultWrap.hidden = false;
+    els.error.hidden = false;
+    els.error.textContent = error instanceof Error ? error.message : String(error);
+    setActionsEnabled(true);
+  }
+}
+
+function applyLiveSelection(text) {
+  const trimmed = typeof text === 'string' ? text.trim() : '';
+
+  if (!trimmed) {
+    if (lastLiveSelection || latestResultText || activeAbort) {
+      clearGeneratedOutput();
+    }
+    lastLiveSelection = '';
+    els.selection.textContent = '';
+    setActionsVisible(false);
+    els.job.hidden = true;
+    els.idle.hidden = false;
+    return;
+  }
+
+  if (trimmed === lastLiveSelection) {
+    els.idle.hidden = true;
+    els.job.hidden = false;
+    els.selection.textContent = trimmed;
+    setActionsVisible(true);
+    setActionsEnabled(!activeAbort);
+    return;
+  }
+
+  lastLiveSelection = trimmed;
+  clearGeneratedOutput();
+
+  els.idle.hidden = true;
+  els.job.hidden = false;
+  els.selection.textContent = trimmed;
+  setActionsVisible(true);
+  setActionsEnabled(true);
+}
+
+async function loadLiveSelection() {
+  const stored = await chrome.storage.session.get(STORAGE_LIVE_SELECTION_KEY);
+  const live = stored[STORAGE_LIVE_SELECTION_KEY];
+  if (live?.text) {
+    applyLiveSelection(live.text);
+  }
+}
+
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === MESSAGE_JOB_UPDATED && message.job) {
     runJob(message.job);
@@ -659,8 +879,21 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'session' && changes[STORAGE_PENDING_JOB_KEY]?.newValue) {
-    runJob(changes[STORAGE_PENDING_JOB_KEY].newValue);
+  if (areaName !== 'session') {
+    return;
+  }
+
+  if (changes[STORAGE_LIVE_SELECTION_KEY]) {
+    applyLiveSelection(changes[STORAGE_LIVE_SELECTION_KEY].newValue?.text || '');
+  }
+
+  if (changes[STORAGE_PENDING_JOB_KEY]?.newValue) {
+    const job = changes[STORAGE_PENDING_JOB_KEY].newValue;
+    const jobSelection = (job.selectionText || '').trim();
+    // Ignore stale jobs after the user already selected different text.
+    if (!lastLiveSelection || !jobSelection || jobSelection === lastLiveSelection) {
+      runJob(job);
+    }
   }
 });
 
@@ -674,6 +907,7 @@ async function init() {
   if (currentSettings.baseUrl.trim()) {
     await refreshModelOptions({ quiet: true });
   }
+  await loadLiveSelection();
   await loadPendingJob();
 }
 

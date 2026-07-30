@@ -283,6 +283,50 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === MESSAGE_SELECTION_CHANGED) {
+    const selectionText =
+      typeof message.selectionText === 'string' ? message.selectionText.trim() : '';
+    const payload = {
+      text: selectionText,
+      url: typeof message.pageUrl === 'string' ? message.pageUrl : '',
+      updatedAt: Date.now(),
+    };
+
+    chrome.storage.session
+      .set({ [STORAGE_LIVE_SELECTION_KEY]: payload })
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === 'RUN_ACTION') {
+    const actionId = String(message.actionId || '');
+    const selectionText = typeof message.selectionText === 'string' ? message.selectionText : '';
+
+    chrome.tabs
+      .query({ active: true, currentWindow: true })
+      .then(async (tabs) => {
+        const tab = tabs[0];
+        if (!tab?.id) {
+          throw new Error('Active tab is required');
+        }
+        await handleActionClick(actionId, selectionText, tab);
+        sendResponse({ ok: true });
+      })
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
   if (message?.type === 'ENSURE_HOST_PERMISSION') {
     ensureHostPermission(message.baseUrl)
       .then(() => sendResponse({ ok: true }))

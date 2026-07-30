@@ -120,7 +120,7 @@
     "message": "Arbeitet…"
   },
   "uiIdle": {
-    "message": "Text markieren, Rechtsklick auf Citepane, Aktion wählen."
+    "message": "Text auf einer Seite markieren, um ihn hier zu sehen; dann Rechtsklick auf Citepane und Aktion wählen."
   },
   "uiSaved": {
     "message": "Einstellungen gespeichert"
@@ -139,5 +139,8 @@
   },
   "uiResponseLanguageAuto": {
     "message": "Auto (Browser)"
+  },
+  "uiActions": {
+    "message": "Was möchten Sie tun?"
   }
 }
