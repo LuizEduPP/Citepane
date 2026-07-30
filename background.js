@@ -282,6 +282,20 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   });
 });
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== SIDEPANEL_PORT_NAME) {
+    return;
+  }
+
+  port.onDisconnect.addListener(() => {
+    chrome.storage.session
+      .remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY])
+      .catch((error) => {
+        console.error('Failed to clear side panel session', error);
+      });
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE_SELECTION_CHANGED) {
     const selectionText =

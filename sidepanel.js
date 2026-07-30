@@ -967,13 +967,52 @@ function applyLiveSelection(text) {
   setActionsEnabled(true);
 }
 
-async function loadLiveSelection() {
-  const stored = await chrome.storage.session.get(STORAGE_LIVE_SELECTION_KEY);
-  const live = stored[STORAGE_LIVE_SELECTION_KEY];
-  if (live?.text) {
-    applyLiveSelection(live.text);
+function resetPanelUi() {
+  if (activeAbort) {
+    activeAbort.abort();
+    activeAbort = null;
   }
+
+  lastLiveSelection = '';
+  latestResultText = '';
+  setSettingsOpen(false);
+  setActionLabel('');
+  setStatus('');
+  els.error.hidden = true;
+  els.error.textContent = '';
+  els.result.replaceChildren();
+  els.copyBtn.hidden = true;
+  els.resultWrap.hidden = true;
+  renderSources([]);
+  setSelectionVisible('');
+  setActionsVisible(false);
+  collapseActionGroups();
+  els.job.hidden = true;
+  els.idle.hidden = false;
 }
+
+function clearPanelSession() {
+  chrome.storage.session
+    .remove([STORAGE_PENDING_JOB_KEY, STORAGE_LAST_RESULT_KEY, STORAGE_LIVE_SELECTION_KEY])
+    .catch(() => {});
+}
+
+function resetPanelOnClose() {
+  resetPanelUi();
+  clearPanelSession();
+}
+
+chrome.runtime.connect({ name: SIDEPANEL_PORT_NAME });
+
+window.addEventListener('pagehide', () => {
+  resetPanelOnClose();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    resetPanelOnClose();
+  }
+});
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === MESSAGE_JOB_UPDATED && message.job) {
@@ -1010,7 +1049,8 @@ async function init() {
   if (currentSettings.baseUrl.trim()) {
     await refreshModelOptions({ quiet: true });
   }
-  await loadLiveSelection();
+  // Fresh open: idle until a new selection or job arrives (closing clears session).
+  resetPanelUi();
   await loadPendingJob();
 }
 
