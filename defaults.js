@@ -34,11 +34,12 @@ const LANGUAGES = Object.freeze([
   Object.freeze({ code: 'fr', label: 'Français' }),
   Object.freeze({ code: 'de', label: 'Deutsch' }),
   Object.freeze({ code: 'it', label: 'Italiano' }),
-  Object.freeze({ code: 'ja', label: '日本語' }),
-  Object.freeze({ code: 'zh-CN', label: '简体中文' }),
-  Object.freeze({ code: 'ko', label: '한국어' }),
-  Object.freeze({ code: 'ru', label: 'Русский' }),
-  Object.freeze({ code: 'ar', label: 'العربية' }),
+  // Latin labels: side panel ships Latin-only webfonts; native scripts become tofu boxes.
+  Object.freeze({ code: 'ja', label: 'Japanese' }),
+  Object.freeze({ code: 'zh-CN', label: 'Chinese (Simplified)' }),
+  Object.freeze({ code: 'ko', label: 'Korean' }),
+  Object.freeze({ code: 'ru', label: 'Russian' }),
+  Object.freeze({ code: 'ar', label: 'Arabic' }),
 ]);
 
 const UI_LOCALE_CODES = Object.freeze(['en', 'pt-BR', 'pt-PT', 'es', 'fr', 'de']);
@@ -58,7 +59,9 @@ const ACTIONS = Object.freeze([
     titleKey: 'actionExplain',
     needsGrounding: true,
     systemPrompt:
-      'Explain the selected text clearly and directly. ' + GROUNDING_RULE,
+      'Explain the selected text clearly and directly. ' +
+      'Situate it in the page topic when relevant, and say what the evidence confirms. ' +
+      GROUNDING_RULE,
   }),
   Object.freeze({
     id: 'define',
@@ -85,39 +88,33 @@ const ACTIONS = Object.freeze([
       GROUNDING_RULE,
   }),
   Object.freeze({
-    id: 'context',
-    titleKey: 'actionContext',
-    needsGrounding: true,
-    systemPrompt:
-      'Situate the selected text in the page topic and what search evidence confirms. ' +
-      GROUNDING_RULE,
-  }),
-  Object.freeze({
     id: 'pros-cons',
     titleKey: 'actionProsCons',
     needsGrounding: true,
     systemPrompt:
-      'List pros and cons anchored in evidence, not free opinion. ' + GROUNDING_RULE,
-  }),
-  Object.freeze({
-    id: 'counterpoints',
-    titleKey: 'actionCounterpoints',
-    needsGrounding: true,
-    systemPrompt:
-      'Provide counterpoints grounded in sources. Do not invent objections without evidence. ' +
+      'List pros and cons anchored in evidence, not free opinion. ' +
+      'Include the strongest counterpoints on each side when sources support them. ' +
       GROUNDING_RULE,
   }),
   Object.freeze({
     id: 'summarize',
     titleKey: 'actionSummarize',
     needsGrounding: false,
-    systemPrompt: 'Summarize the selected text briefly and accurately.',
+    usePageContext: true,
+    systemPrompt:
+      'Summarize the selected text briefly and accurately. ' +
+      'Use PAGE CONTEXT only to disambiguate what the selection refers to. ' +
+      'Do not invent facts that are not in the selection or page context.',
   }),
   Object.freeze({
     id: 'key-points',
     titleKey: 'actionKeyPoints',
     needsGrounding: false,
-    systemPrompt: 'Extract objective key points from the selected text as short bullets.',
+    usePageContext: true,
+    systemPrompt:
+      'Extract objective key points from the selected text as short bullets. ' +
+      'Use PAGE CONTEXT only to disambiguate what the selection refers to. ' +
+      'Do not invent points that are not in the selection or page context.',
   }),
   Object.freeze({
     id: 'simplify',
@@ -156,9 +153,7 @@ const ACTION_MENU_GROUPS = Object.freeze([
       'define',
       'fact-check',
       'find-sources',
-      'context',
       'pros-cons',
-      'counterpoints',
     ]),
   }),
   Object.freeze({

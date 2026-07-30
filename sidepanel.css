@@ -52,7 +52,8 @@
   --focus-ring: rgba(44, 132, 151, 0.35);
   --button-text: #ffffff;
   --radius: 12px;
-  --font: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  --font: "Plus Jakarta Sans", "Segoe UI", "Noto Sans", "Noto Sans CJK JP",
+    "Noto Sans Arabic", system-ui, sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
   color-scheme: light;
 }

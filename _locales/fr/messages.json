@@ -29,14 +29,8 @@
   "actionFindSources": {
     "message": "Trouver des sources"
   },
-  "actionContext": {
-    "message": "Contexte"
-  },
   "actionProsCons": {
     "message": "Pour et contre"
-  },
-  "actionCounterpoints": {
-    "message": "Contrepoints"
   },
   "actionSummarize": {
     "message": "Résumer"

@@ -322,7 +322,7 @@ function buildMessages(job, action) {
     systemParts.push(languageInstruction(job.responseLanguage));
   }
 
-  if (action.needsGrounding) {
+  if (action.needsGrounding || action.usePageContext) {
     systemParts.push(formatEvidenceBlock(job.pageContext, job.evidence));
   }
 

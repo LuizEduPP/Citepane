@@ -29,14 +29,8 @@
   "actionFindSources": {
     "message": "Quellen finden"
   },
-  "actionContext": {
-    "message": "Kontext"
-  },
   "actionProsCons": {
     "message": "Vor- und Nachteile"
-  },
-  "actionCounterpoints": {
-    "message": "Gegenpunkte"
   },
   "actionSummarize": {
     "message": "Zusammenfassen"
