@@ -184,87 +184,6 @@ async function openSidePanel(tabId) {
   await chrome.sidePanel.open({ tabId });
 }
 
-async function transcribeViaApi(message, settings) {
-  const sttBaseUrl = resolveTranscriptionBaseUrl(settings);
-  const model = (settings.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL).trim();
-  if (!model) {
-    throw new Error('Set a transcription model in Citepane Settings.');
-  }
-
-  const audioBase64 = typeof message.audioBase64 === 'string' ? message.audioBase64 : '';
-  if (!audioBase64) {
-    throw new Error('Missing audio payload.');
-  }
-
-  const mimeType =
-    typeof message.mimeType === 'string' && message.mimeType.trim()
-      ? message.mimeType.trim()
-      : 'audio/ogg';
-  const fileName =
-    typeof message.fileName === 'string' && message.fileName.trim()
-      ? message.fileName.trim()
-      : 'voice.ogg';
-
-  await ensureApiHostPermission(sttBaseUrl, { interactive: false });
-
-  const bytes = base64ToUint8Array(audioBase64);
-  const file = new File([bytes], fileName, { type: mimeType });
-  const form = new FormData();
-  form.append('file', file);
-  form.append('model', model);
-  form.append('language', transcriptionLanguageHint(settings.responseLanguage));
-
-  const headers = {};
-  if (settings.apiKey.trim()) {
-    headers.Authorization = `Bearer ${settings.apiKey.trim()}`;
-  }
-
-  const response = await fetch(transcriptionsUrl(sttBaseUrl), {
-    method: 'POST',
-    headers,
-    body: form,
-  });
-
-  const bodyText = await response.text();
-  if (!response.ok) {
-    let detail = bodyText.slice(0, 400);
-    try {
-      const err = JSON.parse(bodyText)?.error?.message;
-      if (typeof err === 'string' && err.trim()) {
-        detail = err.trim();
-      }
-    } catch {
-      // keep raw body slice
-    }
-    if (/unsupported media type|application\/json/i.test(detail)) {
-      throw new Error(
-        'This server rejects OpenAI multipart STT (common with LM Studio). ' +
-          'Use Settings → Transcription engine → On-device Whisper, or point Transcription base URL at a real Whisper API.',
-      );
-    }
-    if (/not found|model .* not found|unexpected endpoint/i.test(detail)) {
-      throw new Error(
-        `STT unavailable on that API (${detail.slice(0, 160)}). ` +
-          `Prefer On-device Whisper in Citepane Settings.`,
-      );
-    }
-    throw new Error(`Transcription failed HTTP ${response.status}: ${detail}`);
-  }
-
-  let payload;
-  try {
-    payload = JSON.parse(bodyText);
-  } catch {
-    throw new Error('Transcription response was not JSON.');
-  }
-
-  const text = typeof payload.text === 'string' ? payload.text.trim() : '';
-  if (!text) {
-    throw new Error('Transcription returned empty text.');
-  }
-  return text;
-}
-
 async function hasLocalWhisperConsent() {
   const stored = await chrome.storage.local.get(STORAGE_LOCAL_WHISPER_OK_KEY);
   return Boolean(stored[STORAGE_LOCAL_WHISPER_OK_KEY]);
@@ -280,6 +199,9 @@ async function acceptLocalWhisperDownload() {
   await chrome.storage.local.set({ [STORAGE_LOCAL_WHISPER_OK_KEY]: true });
   return true;
 }
+
+/** requestId → tabId for streaming STT partials from the offscreen doc. */
+const sttStreamTargets = new Map();
 
 async function ensureOffscreenStt() {
   if (!chrome.offscreen?.createDocument) {
@@ -318,12 +240,14 @@ async function transcribeViaLocalWhisper(message, settings) {
 
   await ensureOffscreenStt();
 
+  const requestId = typeof message.requestId === 'string' ? message.requestId : '';
   const payload = {
     type: MESSAGE_OFFSCREEN_TRANSCRIBE,
     audioBase64,
     mimeType: message.mimeType,
     modelId: settings.localWhisperModel || DEFAULT_LOCAL_WHISPER_MODEL,
     language: settings.responseLanguage || 'auto',
+    requestId,
   };
 
   let result = await chrome.runtime.sendMessage(payload);
@@ -338,43 +262,47 @@ async function transcribeViaLocalWhisper(message, settings) {
   return result.text;
 }
 
-async function transcribeAudioMessage(message) {
+async function transcribeAudioMessage(message, senderTabId = 0) {
   const settings = await readSettings();
   const audioBase64 = typeof message.audioBase64 === 'string' ? message.audioBase64 : '';
   if (!audioBase64) {
     throw new Error('Missing audio payload.');
   }
 
-  const bytes = base64ToUint8Array(audioBase64);
-  const audioHash = await sha256Hex(bytes);
-  const msgKey =
-    typeof message.cacheKey === 'string' && message.cacheKey.trim()
-      ? `msg:${message.cacheKey.trim()}`
-      : '';
-  const audioKey = `audio:${audioHash}`;
-
-  const cached = await getWaTranscriptByKeys([msgKey, audioKey]);
-  if (cached) {
-    // Refresh msg alias if we only had audio hash before.
-    if (msgKey) {
-      await putWaTranscript([msgKey, audioKey], cached, { source: 'cache-hit' });
-    }
-    return cached;
+  const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+  if (requestId && senderTabId) {
+    sttStreamTargets.set(requestId, senderTabId);
   }
 
-  const text =
-    settings.transcriptionEngine === 'api'
-      ? await transcribeViaApi(message, settings)
-      : await transcribeViaLocalWhisper(message, settings);
+  try {
+    const bytes = base64ToUint8Array(audioBase64);
+    const audioHash = await sha256Hex(bytes);
+    const msgId =
+      typeof message.cacheKey === 'string' && message.cacheKey.trim()
+        ? message.cacheKey.trim()
+        : '';
 
-  await putWaTranscript([msgKey, audioKey], text, {
-    engine: settings.transcriptionEngine,
-    model:
-      settings.transcriptionEngine === 'api'
-        ? settings.transcriptionModel
-        : settings.localWhisperModel,
-  });
-  return text;
+    const cached = await getWaTranscript({ msgId, audioHash });
+    if (cached) {
+      await linkWaTranscriptIndexes({ msgId, audioHash });
+      return cached;
+    }
+
+    const text = await transcribeViaLocalWhisper(message, settings);
+
+    await putWaTranscript({
+      text,
+      msgId,
+      audioHash,
+      engine: 'local',
+      model: settings.localWhisperModel,
+    });
+    return text;
+  } finally {
+    if (requestId) {
+      sttStreamTargets.delete(requestId);
+    }
+  }
 }
 
 async function handleActionClick(actionId, selectionText, tab) {
@@ -697,8 +625,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === MESSAGE_OFFSCREEN_TRANSCRIBE_PARTIAL) {
+    const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+    const text = typeof message.text === 'string' ? message.text : '';
+    const tabId = requestId ? sttStreamTargets.get(requestId) : 0;
+    if (tabId && text) {
+      chrome.tabs.sendMessage(tabId, {
+        type: MESSAGE_TRANSCRIBE_PARTIAL,
+        requestId,
+        text,
+      }).catch(() => {});
+    }
+    return false;
+  }
+
   if (message?.type === MESSAGE_TRANSCRIBE_AUDIO) {
-    transcribeAudioMessage(message)
+    const tabId = sender.tab?.id || 0;
+    transcribeAudioMessage(message, tabId)
       .then((text) => sendResponse({ ok: true, text }))
       .catch((error) =>
         sendResponse({
@@ -723,11 +666,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message?.type === MESSAGE_GET_WA_TRANSCRIPT) {
-    const cacheKey =
+    const msgId =
       typeof message.cacheKey === 'string' && message.cacheKey.trim()
-        ? `msg:${message.cacheKey.trim()}`
+        ? message.cacheKey.trim()
         : '';
-    getWaTranscriptByKeys([cacheKey])
+    getWaTranscript({ msgId })
       .then((text) => sendResponse({ ok: true, text }))
       .catch((error) =>
         sendResponse({

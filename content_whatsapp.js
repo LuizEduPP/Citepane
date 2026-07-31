@@ -186,6 +186,7 @@ function ensureCitepaneFooter(root) {
   }
 
   footer.dataset.side = isOutgoingMessage(msg) ? 'out' : 'in';
+  syncFooterBubbleWidth(footer, msg);
   return footer;
 }
 
@@ -209,6 +210,7 @@ function relocateCitepaneUi(root) {
   if (panel && panel.parentElement !== footer) {
     footer.append(panel);
   }
+  return { footer, button, panel };
 }
 
 function ensureTranscriptPanel(root) {
@@ -257,25 +259,64 @@ function ensureTranscriptPanel(root) {
   return panel;
 }
 
-function setPanelState(panel, { text = '', error = '', loading = false } = {}) {
+function syncFooterBubbleWidth(footer, msg) {
+  if (!(footer instanceof HTMLElement) || !(msg instanceof Element)) {
+    return;
+  }
+  const meta = msg.querySelector('[data-testid="msg-meta"]');
+  let bubble = meta?.parentElement || null;
+  while (bubble && bubble.parentElement !== msg) {
+    bubble = bubble.parentElement;
+  }
+  if (!bubble) {
+    const play = findPlayButton(msg);
+    bubble = play?.parentElement || null;
+    while (bubble && bubble.parentElement !== msg) {
+      bubble = bubble.parentElement;
+    }
+  }
+  const width = Math.round((bubble || msg).getBoundingClientRect?.().width || 0);
+  if (width > 80) {
+    footer.style.setProperty('--citepane-wa-bubble-width', `${width}px`);
+  }
+}
+
+function updateFooterChrome(footer, panel) {
+  if (!(footer instanceof HTMLElement)) {
+    return;
+  }
+  const hasText =
+    panel instanceof HTMLElement &&
+    !panel.hidden &&
+    Boolean(panel.querySelector('.citepane-wa-transcript-text')?.textContent?.trim());
+  footer.classList.toggle('has-transcript', hasText && !panel.classList.contains('is-error'));
+}
+
+function setPanelState(panel, { text = '', error = '', loading = false, streaming = false } = {}) {
   const body = panel.querySelector('.citepane-wa-transcript-text');
   const copyBtn = panel.querySelector('.citepane-wa-copy');
-  panel.hidden = false;
+  const footer = panel.closest(`.${CITEPANE_FOOTER_CLASS}`);
+  const show = Boolean(text || error || loading || streaming);
+  panel.hidden = !show;
   panel.classList.toggle('is-error', Boolean(error));
-  panel.classList.toggle('is-loading', loading);
+  panel.classList.toggle('is-loading', loading && !streaming && !text);
+  panel.classList.toggle('is-streaming', streaming);
 
-  if (loading) {
+  if (loading && !text && !error) {
     body.textContent = extMessage('uiTranscribing');
     copyBtn.hidden = true;
+    updateFooterChrome(footer, panel);
     return;
   }
   if (error) {
     body.textContent = error;
     copyBtn.hidden = true;
+    updateFooterChrome(footer, panel);
     return;
   }
   body.textContent = text;
-  copyBtn.hidden = !text;
+  copyBtn.hidden = !text || streaming;
+  updateFooterChrome(footer, panel);
 }
 
 function waitWithTimeout(signal, run) {
@@ -407,13 +448,14 @@ async function requestLocalWhisperConsent() {
   return true;
 }
 
-async function sendTranscribeRequest(panel, buffer, mimeType, fileName, cacheKey = '') {
+async function sendTranscribeRequest(panel, buffer, mimeType, fileName, cacheKey = '', requestId = '') {
   const payload = {
     type: MESSAGE_TRANSCRIBE_AUDIO,
     audioBase64: arrayBufferToBase64(buffer),
     mimeType,
     fileName,
     cacheKey,
+    requestId,
   };
   let result = await runtimeSendMessage(payload);
   if (result?.needsConsent) {
@@ -447,16 +489,19 @@ function findMessageCacheKey(root) {
   return '';
 }
 
-async function restoreCachedTranscript(root, panel) {
-  const cacheKey = findMessageCacheKey(root);
+async function fetchCachedTranscriptText(cacheKey) {
   if (!cacheKey) {
-    return false;
+    return '';
   }
   const result = await runtimeSendMessage({
     type: MESSAGE_GET_WA_TRANSCRIPT,
     cacheKey,
   });
-  const text = typeof result?.text === 'string' ? result.text.trim() : '';
+  return typeof result?.text === 'string' ? result.text.trim() : '';
+}
+
+async function restoreCachedTranscript(root, panel) {
+  const text = await fetchCachedTranscriptText(findMessageCacheKey(root));
   if (!text) {
     return false;
   }
@@ -464,22 +509,29 @@ async function restoreCachedTranscript(root, panel) {
   return true;
 }
 
+/** Active STT stream request → panel (for live partials). */
+const activeSttStreams = new Map();
+
+function newSttRequestId() {
+  if (globalThis.crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `stt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function transcribeVoiceRoot(root, panel, button) {
   button.disabled = true;
   setPanelState(panel, { loading: true });
 
+  const requestId = newSttRequestId();
+  activeSttStreams.set(requestId, panel);
+
   try {
     const cacheKey = findMessageCacheKey(root);
-    if (cacheKey) {
-      const cached = await runtimeSendMessage({
-        type: MESSAGE_GET_WA_TRANSCRIPT,
-        cacheKey,
-      });
-      const text = typeof cached?.text === 'string' ? cached.text.trim() : '';
-      if (text) {
-        setPanelState(panel, { text });
-        return;
-      }
+    const cached = await fetchCachedTranscriptText(cacheKey);
+    if (cached) {
+      setPanelState(panel, { text: cached });
+      return;
     }
 
     const { buffer, mimeType: rawMime } = await resolveAudioPayload(root);
@@ -496,6 +548,7 @@ async function transcribeVoiceRoot(root, panel, button) {
       mimeType,
       `whatsapp-voice.${ext}`,
       cacheKey,
+      requestId,
     );
 
     if (!result?.ok) {
@@ -505,14 +558,8 @@ async function transcribeVoiceRoot(root, panel, button) {
   } catch (error) {
     setPanelState(panel, { error: formatCaught(error) || extMessage('uiTranscriptError') });
   } finally {
+    activeSttStreams.delete(requestId);
     button.disabled = false;
-  }
-}
-
-function placeTranscribeButton(root, button) {
-  const footer = ensureCitepaneFooter(root);
-  if (button.parentElement !== footer) {
-    footer.prepend(button);
   }
 }
 
@@ -544,8 +591,10 @@ function enhanceVoiceRoot(root) {
     event.stopPropagation();
     transcribeVoiceRoot(root, panel, button);
   });
-  placeTranscribeButton(root, button);
-  relocateCitepaneUi(root);
+  const { footer } = relocateCitepaneUi(root);
+  if (button.parentElement !== footer) {
+    footer.prepend(button);
+  }
   restoreCachedTranscript(root, panel).catch(() => {});
 }
 
@@ -605,6 +654,23 @@ async function ensureAudioHook() {
 function startWhatsAppTranscription() {
   if (!isExtensionContextValid()) {
     return;
+  }
+
+  try {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message?.type !== MESSAGE_TRANSCRIBE_PARTIAL) {
+        return;
+      }
+      const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+      const text = typeof message.text === 'string' ? message.text.trim() : '';
+      const panel = requestId ? activeSttStreams.get(requestId) : null;
+      if (!panel || !text) {
+        return;
+      }
+      setPanelState(panel, { text, streaming: true });
+    });
+  } catch {
+    // Extension context may already be invalid.
   }
 
   ensureAudioHook().catch(() => {});

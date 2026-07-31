@@ -22,16 +22,12 @@ const WA_TRANSCRIPT_CACHE_MAX = 300;
 const DEFAULT_BASE_URL = '';
 const DEFAULT_MODEL = '';
 const DEFAULT_API_KEY = '';
-const DEFAULT_TRANSCRIPTION_ENGINE = 'local';
-const DEFAULT_TRANSCRIPTION_MODEL = 'whisper';
-const DEFAULT_TRANSCRIPTION_BASE_URL = '';
 const DEFAULT_LOCAL_WHISPER_MODEL = 'Xenova/whisper-tiny';
 const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
 const DEFAULT_THEME = 'auto';
 
 const THEME_OPTIONS = Object.freeze(['auto', 'light', 'dark']);
-const TRANSCRIPTION_ENGINE_OPTIONS = Object.freeze(['local', 'api']);
 const LOCAL_WHISPER_MODELS = Object.freeze([
   Object.freeze({
     id: 'Xenova/whisper-tiny',
@@ -76,6 +72,8 @@ const MESSAGE_TRANSCRIBE_AUDIO = 'TRANSCRIBE_AUDIO';
 const MESSAGE_INJECT_WA_AUDIO_HOOK = 'INJECT_WA_AUDIO_HOOK';
 const MESSAGE_ACCEPT_LOCAL_WHISPER = 'ACCEPT_LOCAL_WHISPER';
 const MESSAGE_OFFSCREEN_TRANSCRIBE = 'OFFSCREEN_TRANSCRIBE';
+const MESSAGE_OFFSCREEN_TRANSCRIBE_PARTIAL = 'OFFSCREEN_TRANSCRIBE_PARTIAL';
+const MESSAGE_TRANSCRIBE_PARTIAL = 'TRANSCRIBE_PARTIAL';
 const MESSAGE_GET_WA_TRANSCRIPT = 'GET_WA_TRANSCRIPT';
 const SIDEPANEL_PORT_NAME = 'citepane-sidepanel';
 
@@ -146,58 +144,234 @@ async function sha256Hex(bytes) {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function readWaTranscriptCache() {
-  const stored = await chrome.storage.local.get(STORAGE_WA_TRANSCRIPT_CACHE_KEY);
-  const cache = stored[STORAGE_WA_TRANSCRIPT_CACHE_KEY];
-  return cache && typeof cache === 'object' && !Array.isArray(cache) ? cache : {};
+/**
+ * WA transcript cache v2: one item per transcript; byMsg/byAudio are indexes only
+ * (no duplicated text under msg: and audio: keys).
+ * Shape: { v:2, items:{[id]:{text,at,msgId?,audioHash?,...}}, byMsg:{}, byAudio:{} }
+ */
+function emptyWaTranscriptCache() {
+  return { v: 2, items: {}, byMsg: {}, byAudio: {} };
 }
 
-async function getWaTranscriptByKeys(keys) {
-  const cache = await readWaTranscriptCache();
-  for (const key of keys) {
-    if (!key) {
+function migrateWaTranscriptCache(raw) {
+  if (raw?.v === 2 && raw.items && typeof raw.items === 'object') {
+    return {
+      v: 2,
+      items: raw.items,
+      byMsg: raw.byMsg && typeof raw.byMsg === 'object' ? raw.byMsg : {},
+      byAudio: raw.byAudio && typeof raw.byAudio === 'object' ? raw.byAudio : {},
+    };
+  }
+
+  const next = emptyWaTranscriptCache();
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return next;
+  }
+
+  // v1: flat { "msg:ID": {text,at}, "audio:HASH": {text,at} } — merge same text into one item.
+  const byText = new Map();
+  for (const [key, val] of Object.entries(raw)) {
+    if (!val || typeof val !== 'object' || typeof val.text !== 'string') {
       continue;
     }
-    const text = cache[key]?.text;
-    if (typeof text === 'string' && text.trim()) {
-      return text.trim();
+    const text = val.text.trim();
+    if (!text) {
+      continue;
     }
+    let item = byText.get(text);
+    if (!item) {
+      item = { text, at: Number(val.at) || Date.now() };
+      byText.set(text, item);
+    } else {
+      item.at = Math.max(item.at, Number(val.at) || 0);
+    }
+    if (key.startsWith('msg:')) {
+      item.msgId = key.slice(4);
+    } else if (key.startsWith('audio:')) {
+      item.audioHash = key.slice(6);
+    }
+    for (const metaKey of ['engine', 'model', 'source']) {
+      if (val[metaKey] != null && item[metaKey] == null) {
+        item[metaKey] = val[metaKey];
+      }
+    }
+  }
+
+  for (const item of byText.values()) {
+    const id = item.msgId || (item.audioHash ? `a:${item.audioHash}` : `t:${item.at}`);
+    next.items[id] = item;
+    if (item.msgId) {
+      next.byMsg[item.msgId] = id;
+    }
+    if (item.audioHash) {
+      next.byAudio[item.audioHash] = id;
+    }
+  }
+  return next;
+}
+
+async function readWaTranscriptCache() {
+  const stored = await chrome.storage.local.get(STORAGE_WA_TRANSCRIPT_CACHE_KEY);
+  const raw = stored[STORAGE_WA_TRANSCRIPT_CACHE_KEY];
+  if (raw?.v === 2 && raw.items && typeof raw.items === 'object') {
+    return migrateWaTranscriptCache(raw);
+  }
+  const migrated = migrateWaTranscriptCache(raw);
+  // Persist v2 immediately so old msg:/audio: duplicates disappear from storage.
+  await chrome.storage.local.set({ [STORAGE_WA_TRANSCRIPT_CACHE_KEY]: migrated });
+  return migrated;
+}
+
+function resolveWaTranscriptId(cache, { msgId = '', audioHash = '' } = {}) {
+  if (msgId && cache.byMsg[msgId]) {
+    return cache.byMsg[msgId];
+  }
+  if (audioHash && cache.byAudio[audioHash]) {
+    return cache.byAudio[audioHash];
   }
   return '';
 }
 
-async function putWaTranscript(keys, text, meta = {}) {
+async function getWaTranscript({ msgId = '', audioHash = '' } = {}) {
+  const cache = await readWaTranscriptCache();
+  const id = resolveWaTranscriptId(cache, { msgId, audioHash });
+  const text = id ? cache.items[id]?.text : '';
+  return typeof text === 'string' ? text.trim() : '';
+}
+
+function pruneWaTranscriptCache(cache) {
+  const ids = Object.keys(cache.items);
+  if (ids.length <= WA_TRANSCRIPT_CACHE_MAX) {
+    return;
+  }
+  const ranked = ids
+    .map((id) => [id, cache.items[id]?.at || 0])
+    .sort((a, b) => a[1] - b[1]);
+  const drop = ranked.slice(0, ids.length - WA_TRANSCRIPT_CACHE_MAX);
+  for (const [id] of drop) {
+    const item = cache.items[id];
+    delete cache.items[id];
+    if (item?.msgId && cache.byMsg[item.msgId] === id) {
+      delete cache.byMsg[item.msgId];
+    }
+    if (item?.audioHash && cache.byAudio[item.audioHash] === id) {
+      delete cache.byAudio[item.audioHash];
+    }
+  }
+  // Drop dangling indexes.
+  for (const [msgId, id] of Object.entries(cache.byMsg)) {
+    if (!cache.items[id]) {
+      delete cache.byMsg[msgId];
+    }
+  }
+  for (const [hash, id] of Object.entries(cache.byAudio)) {
+    if (!cache.items[id]) {
+      delete cache.byAudio[hash];
+    }
+  }
+}
+
+/** Upsert one transcript; msgId + audioHash are indexes to the same item (text stored once). */
+async function putWaTranscript({ text, msgId = '', audioHash = '', ...meta } = {}) {
   const trimmed = typeof text === 'string' ? text.trim() : '';
   if (!trimmed) {
     return;
   }
-  const validKeys = [...new Set(keys.filter((key) => typeof key === 'string' && key.trim()))];
-  if (!validKeys.length) {
-    return;
+  const cache = await readWaTranscriptCache();
+  let id = resolveWaTranscriptId(cache, { msgId, audioHash });
+  if (!id) {
+    id = msgId || (audioHash ? `a:${audioHash}` : `t:${Date.now()}`);
   }
 
-  const cache = await readWaTranscriptCache();
-  const entry = {
+  const prev = cache.items[id] || {};
+  const item = {
+    ...prev,
     text: trimmed,
     at: Date.now(),
-    ...meta,
   };
-  for (const key of validKeys) {
-    cache[key] = entry;
+  if (msgId) {
+    item.msgId = msgId;
+  }
+  if (audioHash) {
+    item.audioHash = audioHash;
+  }
+  for (const [key, value] of Object.entries(meta)) {
+    if (value != null && key !== 'text' && key !== 'at') {
+      item[key] = value;
+    }
+  }
+  // Drop transient cache-hit marker from persisted meta.
+  delete item.source;
+
+  cache.items[id] = item;
+  if (item.msgId) {
+    cache.byMsg[item.msgId] = id;
+  }
+  if (item.audioHash) {
+    cache.byAudio[item.audioHash] = id;
   }
 
-  const entries = Object.entries(cache);
-  if (entries.length > WA_TRANSCRIPT_CACHE_MAX) {
-    entries
-      .sort((a, b) => (a[1]?.at || 0) - (b[1]?.at || 0))
-      .slice(0, entries.length - WA_TRANSCRIPT_CACHE_MAX)
-      .forEach(([key]) => {
-        delete cache[key];
-      });
-  }
-
+  pruneWaTranscriptCache(cache);
   await chrome.storage.local.set({ [STORAGE_WA_TRANSCRIPT_CACHE_KEY]: cache });
 }
+
+/** Ensure msg/audio indexes point at the existing item without rewriting text. */
+async function linkWaTranscriptIndexes({ msgId = '', audioHash = '' } = {}) {
+  if (!msgId && !audioHash) {
+    return;
+  }
+  const cache = await readWaTranscriptCache();
+  const id = resolveWaTranscriptId(cache, { msgId, audioHash });
+  if (!id || !cache.items[id]) {
+    return;
+  }
+  const item = cache.items[id];
+  let changed = false;
+  if (msgId && cache.byMsg[msgId] !== id) {
+    item.msgId = msgId;
+    cache.byMsg[msgId] = id;
+    changed = true;
+  }
+  if (audioHash && cache.byAudio[audioHash] !== id) {
+    item.audioHash = audioHash;
+    cache.byAudio[audioHash] = id;
+    changed = true;
+  }
+  if (changed) {
+    item.at = Date.now();
+    await chrome.storage.local.set({ [STORAGE_WA_TRANSCRIPT_CACHE_KEY]: cache });
+  }
+}
+
+function whisperLanguageForAsr(code) {
+  if (!code || code === 'auto') {
+    return null;
+  }
+  const base = String(code).split('-')[0].toLowerCase();
+  const map = {
+    en: 'english',
+    pt: 'portuguese',
+    es: 'spanish',
+    fr: 'french',
+    de: 'german',
+    it: 'italian',
+    ja: 'japanese',
+    zh: 'chinese',
+    ko: 'korean',
+    ru: 'russian',
+    ar: 'arabic',
+  };
+  return map[base] || null;
+}
+
+/** Symbols needed by module pages (offscreen) that cannot import this classic script. */
+globalThis.CITEPANE = Object.freeze({
+  MESSAGE_OFFSCREEN_TRANSCRIBE,
+  MESSAGE_OFFSCREEN_TRANSCRIBE_PARTIAL,
+  DEFAULT_LOCAL_WHISPER_MODEL,
+  base64ToUint8Array,
+  whisperLanguageForAsr,
+});
 
 /** postMessage source for wa_audio_hook.js ↔ content_whatsapp.js */
 const WA_AUDIO_HOOK_SOURCE = 'citepane-wa-audio';
@@ -385,9 +559,6 @@ function getDefaultSettings() {
     baseUrl: DEFAULT_BASE_URL,
     model: DEFAULT_MODEL,
     apiKey: DEFAULT_API_KEY,
-    transcriptionEngine: DEFAULT_TRANSCRIPTION_ENGINE,
-    transcriptionBaseUrl: DEFAULT_TRANSCRIPTION_BASE_URL,
-    transcriptionModel: DEFAULT_TRANSCRIPTION_MODEL,
     localWhisperModel: DEFAULT_LOCAL_WHISPER_MODEL,
     responseLanguage: DEFAULT_RESPONSE_LANGUAGE,
     uiLanguage: DEFAULT_UI_LANGUAGE,
@@ -436,22 +607,6 @@ function mergeSettings(raw) {
       ? normalizeModel(incoming.model)
       : defaults.model,
     apiKey: typeof incoming.apiKey === 'string' ? incoming.apiKey : defaults.apiKey,
-    transcriptionEngine: TRANSCRIPTION_ENGINE_OPTIONS.includes(incoming.transcriptionEngine)
-      ? incoming.transcriptionEngine
-      : defaults.transcriptionEngine,
-    transcriptionBaseUrl:
-      typeof incoming.transcriptionBaseUrl === 'string' && incoming.transcriptionBaseUrl.trim()
-        ? normalizeBaseUrl(incoming.transcriptionBaseUrl)
-        : defaults.transcriptionBaseUrl,
-    transcriptionModel: (() => {
-      const raw =
-        typeof incoming.transcriptionModel === 'string' ? incoming.transcriptionModel.trim() : '';
-      // Old OpenAI default; local backends expect ids like "whisper".
-      if (!raw || raw === 'whisper-1') {
-        return defaults.transcriptionModel;
-      }
-      return raw;
-    })(),
     localWhisperModel: (() => {
       const raw =
         typeof incoming.localWhisperModel === 'string' ? incoming.localWhisperModel.trim() : '';
@@ -586,32 +741,8 @@ function chatCompletionsUrl(baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}/chat/completions`;
 }
 
-/** STT host: dedicated transcription base URL, else main API base URL. */
-function resolveTranscriptionBaseUrl(settings) {
-  const dedicated =
-    typeof settings?.transcriptionBaseUrl === 'string' ? settings.transcriptionBaseUrl.trim() : '';
-  if (dedicated) {
-    return normalizeBaseUrl(dedicated);
-  }
-  const base = typeof settings?.baseUrl === 'string' ? settings.baseUrl.trim() : '';
-  if (base) {
-    return normalizeBaseUrl(base);
-  }
-  throw new Error('Set API base URL or Transcription base URL in Citepane Settings.');
-}
-
-function transcriptionsUrl(baseUrl) {
-  return `${normalizeBaseUrl(baseUrl)}/audio/transcriptions`;
-}
-
 function modelsUrl(baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}/models`;
-}
-
-/** Whisper / OpenAI transcription language hint (ISO-639-1 when possible). */
-function transcriptionLanguageHint(responseLanguage) {
-  const code = resolveResponseLanguage(responseLanguage);
-  return code.split('-')[0].toLowerCase();
 }
 
 function truncateText(text, maxChars) {

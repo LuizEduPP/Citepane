@@ -164,12 +164,6 @@
   "uiActions": {
     "message": "Que voulez-vous faire ?"
   },
-  "uiTranscriptionBaseUrl": {
-    "message": "URL de base de transcription (facultatif)"
-  },
-  "uiTranscriptionModel": {
-    "message": "Modèle de transcription (API)"
-  },
   "uiTranscribe": {
     "message": "Transcrire"
   },
@@ -181,15 +175,6 @@
   },
   "uiTranscriptError": {
     "message": "Impossible de transcrire cet audio."
-  },
-  "uiTranscriptionEngine": {
-    "message": "Moteur de transcription"
-  },
-  "uiTranscriptionEngineLocal": {
-    "message": "Whisper sur l’appareil (téléchargement unique)"
-  },
-  "uiTranscriptionEngineApi": {
-    "message": "API (/audio/transcriptions)"
   },
   "uiLocalWhisperModel": {
     "message": "Taille du Whisper local"

@@ -1,43 +1,52 @@
 .citepane-wa-transcribe,
 .citepane-wa-transcript-text,
 .citepane-wa-copy {
-  font-family: system-ui, "Segoe UI", sans-serif;
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, "Lucida Grande", Arial, sans-serif;
 }
 
-/* One footer under the bubble, in WA's addon-bubble-container. */
+/*
+ * Sit in WA's addon slot, but paint like a follow-up bubble so text
+ * isn't floating on the chat wallpaper.
+ */
 .citepane-wa-footer {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
   box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 2px 4px 4px;
+  width: var(--citepane-wa-bubble-width, auto);
+  max-width: min(85%, 420px);
+  min-width: 120px;
+  margin: 2px 0 0;
+  padding: 0;
   border: none;
   position: relative;
   z-index: 2;
+  color: #e9edef;
 }
 
 [data-testid="addon-bubble-container"] > .citepane-wa-footer {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
 .citepane-wa-footer[data-side="out"] {
   align-items: flex-end;
+  margin-inline-start: auto;
+  margin-inline-end: 0;
 }
 
-.citepane-wa-footer[data-side="out"] .citepane-wa-transcript-text {
-  text-align: start;
+.citepane-wa-footer[data-side="in"] {
+  align-items: flex-start;
+  margin-inline-end: auto;
+  margin-inline-start: 0;
 }
 
 .citepane-wa-transcribe {
   display: inline-flex;
   align-items: center;
-  margin: 0;
-  padding: 0;
+  margin: 0 2px;
+  padding: 2px 0;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -59,19 +68,54 @@
   cursor: wait;
 }
 
-.citepane-wa-transcript {
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  width: 100%;
-  box-sizing: border-box;
+.citepane-wa-footer.has-transcript .citepane-wa-transcribe {
+  display: none;
 }
 
-.citepane-wa-transcript.is-loading .citepane-wa-transcript-text {
-  opacity: 0.75;
-  font-style: italic;
+/* Follow-up bubble under the PTT player */
+.citepane-wa-transcript {
+  display: none;
+  margin: 0;
+  padding: 6px 9px 8px;
+  border: none;
+  border-radius: 7.5px;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  background: #202c33;
+  color: inherit;
+}
+
+.citepane-wa-footer[data-side="out"] .citepane-wa-transcript {
+  background: #005c4b;
+}
+
+.citepane-wa-transcript:not([hidden]) {
+  display: block;
+}
+
+.citepane-wa-transcript.is-loading .citepane-wa-transcript-text,
+.citepane-wa-transcript.is-streaming .citepane-wa-transcript-text {
+  opacity: 0.92;
+}
+
+.citepane-wa-transcript.is-streaming .citepane-wa-transcript-text::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 1px;
+  animation: citepane-wa-caret 1s steps(1) infinite;
+  color: #53bdeb;
+}
+
+@keyframes citepane-wa-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .citepane-wa-transcript.is-error .citepane-wa-transcript-text {
@@ -82,8 +126,8 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13.5px;
-  line-height: 1.4;
+  font-size: 14.2px;
+  line-height: 1.35;
   color: inherit;
 }
 
@@ -111,4 +155,37 @@
 
 .citepane-wa-copy:hover {
   text-decoration: underline;
+}
+
+/* Light WhatsApp theme */
+html[data-theme="light"] .citepane-wa-footer,
+body.light .citepane-wa-footer,
+.light .citepane-wa-footer {
+  color: #111b21;
+}
+
+html[data-theme="light"] .citepane-wa-footer[data-side="out"] .citepane-wa-transcript,
+body.light .citepane-wa-footer[data-side="out"] .citepane-wa-transcript,
+.light .citepane-wa-footer[data-side="out"] .citepane-wa-transcript {
+  background: #d9fdd3;
+}
+
+html[data-theme="light"] .citepane-wa-footer[data-side="in"] .citepane-wa-transcript,
+body.light .citepane-wa-footer[data-side="in"] .citepane-wa-transcript,
+.light .citepane-wa-footer[data-side="in"] .citepane-wa-transcript {
+  background: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer {
+    color: #111b21;
+  }
+
+  html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer[data-side="out"] .citepane-wa-transcript {
+    background: #d9fdd3;
+  }
+
+  html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer[data-side="in"] .citepane-wa-transcript {
+    background: #ffffff;
+  }
 }
