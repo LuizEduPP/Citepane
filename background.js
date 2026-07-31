@@ -340,10 +340,41 @@ async function transcribeViaLocalWhisper(message, settings) {
 
 async function transcribeAudioMessage(message) {
   const settings = await readSettings();
-  if (settings.transcriptionEngine === 'api') {
-    return transcribeViaApi(message, settings);
+  const audioBase64 = typeof message.audioBase64 === 'string' ? message.audioBase64 : '';
+  if (!audioBase64) {
+    throw new Error('Missing audio payload.');
   }
-  return transcribeViaLocalWhisper(message, settings);
+
+  const bytes = base64ToUint8Array(audioBase64);
+  const audioHash = await sha256Hex(bytes);
+  const msgKey =
+    typeof message.cacheKey === 'string' && message.cacheKey.trim()
+      ? `msg:${message.cacheKey.trim()}`
+      : '';
+  const audioKey = `audio:${audioHash}`;
+
+  const cached = await getWaTranscriptByKeys([msgKey, audioKey]);
+  if (cached) {
+    // Refresh msg alias if we only had audio hash before.
+    if (msgKey) {
+      await putWaTranscript([msgKey, audioKey], cached, { source: 'cache-hit' });
+    }
+    return cached;
+  }
+
+  const text =
+    settings.transcriptionEngine === 'api'
+      ? await transcribeViaApi(message, settings)
+      : await transcribeViaLocalWhisper(message, settings);
+
+  await putWaTranscript([msgKey, audioKey], text, {
+    engine: settings.transcriptionEngine,
+    model:
+      settings.transcriptionEngine === 'api'
+        ? settings.transcriptionModel
+        : settings.localWhisperModel,
+  });
+  return text;
 }
 
 async function handleActionClick(actionId, selectionText, tab) {
@@ -682,6 +713,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === MESSAGE_ACCEPT_LOCAL_WHISPER) {
     acceptLocalWhisperDownload()
       .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === MESSAGE_GET_WA_TRANSCRIPT) {
+    const cacheKey =
+      typeof message.cacheKey === 'string' && message.cacheKey.trim()
+        ? `msg:${message.cacheKey.trim()}`
+        : '';
+    getWaTranscriptByKeys([cacheKey])
+      .then((text) => sendResponse({ ok: true, text }))
       .catch((error) =>
         sendResponse({
           ok: false,

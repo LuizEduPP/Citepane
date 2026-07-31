@@ -53,19 +53,11 @@ async function getTranscriber(modelId) {
   if (transcriber && loadedModelId === modelId) {
     return transcriber;
   }
-  // Prefer WebGPU when available; WASM otherwise.
-  const device = navigator.gpu ? 'webgpu' : 'wasm';
-  try {
-    transcriber = await pipeline('automatic-speech-recognition', modelId, {
-      device,
-      dtype: device === 'webgpu' ? 'fp32' : 'q8',
-    });
-  } catch {
-    transcriber = await pipeline('automatic-speech-recognition', modelId, {
-      device: 'wasm',
-      dtype: 'q8',
-    });
-  }
+  // Extension offscreen pages usually cannot get a WebGPU adapter — use WASM.
+  transcriber = await pipeline('automatic-speech-recognition', modelId, {
+    device: 'wasm',
+    dtype: 'q8',
+  });
   loadedModelId = modelId;
   return transcriber;
 }

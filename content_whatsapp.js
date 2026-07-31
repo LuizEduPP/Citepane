@@ -9,6 +9,7 @@
 const CITEPANE_VOICE_ATTR = 'data-citepane-voice';
 const CITEPANE_BTN_CLASS = 'citepane-wa-transcribe';
 const CITEPANE_PANEL_CLASS = 'citepane-wa-transcript';
+const CITEPANE_FOOTER_CLASS = 'citepane-wa-footer';
 const AUDIO_CAPTURE_TIMEOUT_MS = 12000;
 
 const WA_VOICE_MARKERS = [
@@ -91,18 +92,129 @@ async function readAudioElementPayload(audio) {
   };
 }
 
-function placeInMessage(root, node) {
-  const addon = root.querySelector('[data-testid="addon-bubble-container"]');
-  if (addon) {
-    addon.append(node);
-    return;
+/** Message list row that owns msg-container + addon-bubble-container. */
+function findMessageRow(msg) {
+  return (
+    msg.closest?.('[data-testid^="conv-msg-"]') ||
+    msg.closest?.('[role="row"]') ||
+    msg.closest?.('[data-id]') ||
+    msg.parentElement
+  );
+}
+
+/**
+ * WhatsApp mounts reactions/addons in [data-testid="addon-bubble-container"]
+ * under the message row — that is the correct host for our UI.
+ */
+function findAddonHost(msg) {
+  const row = findMessageRow(msg);
+  return (
+    row?.querySelector?.('[data-testid="addon-bubble-container"]') ||
+    msg.parentElement?.querySelector?.('[data-testid="addon-bubble-container"]') ||
+    null
+  );
+}
+
+function isOutgoingMessage(msg) {
+  return Boolean(
+    msg.querySelector('[data-testid="tail-out"], [data-icon="tail-out"]') ||
+      msg.closest('.message-out') ||
+      msg.querySelector('[aria-label="Você:"], [aria-label="You:"]'),
+  );
+}
+
+function collectCitepaneFooters(msg) {
+  const row = findMessageRow(msg);
+  const host = findAddonHost(msg);
+  const seen = new Set();
+  const list = [];
+  for (const scope of [host, row, msg].filter(Boolean)) {
+    scope.querySelectorAll(`.${CITEPANE_FOOTER_CLASS}`).forEach((el) => {
+      if (!seen.has(el)) {
+        seen.add(el);
+        list.push(el);
+      }
+    });
   }
-  root.append(node);
+  return list;
+}
+
+function pickKeepFooter(footers) {
+  return (
+    footers.find((f) => f.querySelector(`.${CITEPANE_BTN_CLASS}`) && f.querySelector(`.${CITEPANE_PANEL_CLASS}`)) ||
+    footers.find((f) => f.querySelector(`.${CITEPANE_BTN_CLASS}`)) ||
+    footers.find((f) => f.querySelector(`.${CITEPANE_PANEL_CLASS}`)) ||
+    footers[0] ||
+    null
+  );
+}
+
+/** One footer per voice message; merge button+transcript; drop empty clones. */
+function ensureCitepaneFooter(root) {
+  const msg = root.closest?.('[data-testid="msg-container"]') || root;
+  const host = findAddonHost(msg) || msg;
+  const footers = collectCitepaneFooters(msg);
+  let footer = pickKeepFooter(footers);
+
+  for (const extra of footers) {
+    if (extra === footer) {
+      continue;
+    }
+    if (footer) {
+      const btn = extra.querySelector(`.${CITEPANE_BTN_CLASS}`);
+      const panel = extra.querySelector(`.${CITEPANE_PANEL_CLASS}`);
+      if (btn && !footer.querySelector(`.${CITEPANE_BTN_CLASS}`)) {
+        footer.prepend(btn);
+      } else if (btn) {
+        btn.remove();
+      }
+      if (panel && !footer.querySelector(`.${CITEPANE_PANEL_CLASS}`)) {
+        footer.append(panel);
+      } else if (panel) {
+        panel.remove();
+      }
+    }
+    extra.remove();
+  }
+
+  if (!footer) {
+    footer = document.createElement('div');
+    footer.className = CITEPANE_FOOTER_CLASS;
+    host.append(footer);
+  } else if (footer.parentElement !== host) {
+    host.append(footer);
+  }
+
+  footer.dataset.side = isOutgoingMessage(msg) ? 'out' : 'in';
+  return footer;
+}
+
+function findCitepaneInRow(root, className) {
+  const msg = root.closest?.('[data-testid="msg-container"]') || root;
+  const row = findMessageRow(msg);
+  return (
+    row?.querySelector(`.${className}`) ||
+    msg.querySelector(`.${className}`) ||
+    null
+  );
+}
+
+function relocateCitepaneUi(root) {
+  const footer = ensureCitepaneFooter(root);
+  const button = findCitepaneInRow(root, CITEPANE_BTN_CLASS);
+  const panel = findCitepaneInRow(root, CITEPANE_PANEL_CLASS);
+  if (button && button.parentElement !== footer) {
+    footer.prepend(button);
+  }
+  if (panel && panel.parentElement !== footer) {
+    footer.append(panel);
+  }
 }
 
 function ensureTranscriptPanel(root) {
-  let panel = root.querySelector(`.${CITEPANE_PANEL_CLASS}`);
+  let panel = findCitepaneInRow(root, CITEPANE_PANEL_CLASS);
   if (panel) {
+    relocateCitepaneUi(root);
     return panel;
   }
 
@@ -141,7 +253,7 @@ function ensureTranscriptPanel(root) {
 
   tools.append(copyBtn);
   panel.append(body, tools);
-  placeInMessage(root, panel);
+  ensureCitepaneFooter(root).append(panel);
   return panel;
 }
 
@@ -295,12 +407,13 @@ async function requestLocalWhisperConsent() {
   return true;
 }
 
-async function sendTranscribeRequest(panel, buffer, mimeType, fileName) {
+async function sendTranscribeRequest(panel, buffer, mimeType, fileName, cacheKey = '') {
   const payload = {
     type: MESSAGE_TRANSCRIBE_AUDIO,
     audioBase64: arrayBufferToBase64(buffer),
     mimeType,
     fileName,
+    cacheKey,
   };
   let result = await runtimeSendMessage(payload);
   if (result?.needsConsent) {
@@ -314,11 +427,61 @@ async function sendTranscribeRequest(panel, buffer, mimeType, fileName) {
   return result;
 }
 
+function findMessageCacheKey(root) {
+  const withId =
+    root.closest?.('[data-id]') ||
+    root.querySelector?.('[data-id]') ||
+    root.closest?.('[data-testid^="conv-msg-"]') ||
+    root.querySelector?.('[data-testid^="conv-msg-"]');
+  if (!(withId instanceof Element)) {
+    return '';
+  }
+  const dataId = withId.getAttribute('data-id');
+  if (dataId) {
+    return dataId;
+  }
+  const testId = withId.getAttribute('data-testid') || '';
+  if (testId.startsWith('conv-msg-')) {
+    return testId.slice('conv-msg-'.length);
+  }
+  return '';
+}
+
+async function restoreCachedTranscript(root, panel) {
+  const cacheKey = findMessageCacheKey(root);
+  if (!cacheKey) {
+    return false;
+  }
+  const result = await runtimeSendMessage({
+    type: MESSAGE_GET_WA_TRANSCRIPT,
+    cacheKey,
+  });
+  const text = typeof result?.text === 'string' ? result.text.trim() : '';
+  if (!text) {
+    return false;
+  }
+  setPanelState(panel, { text });
+  return true;
+}
+
 async function transcribeVoiceRoot(root, panel, button) {
   button.disabled = true;
   setPanelState(panel, { loading: true });
 
   try {
+    const cacheKey = findMessageCacheKey(root);
+    if (cacheKey) {
+      const cached = await runtimeSendMessage({
+        type: MESSAGE_GET_WA_TRANSCRIPT,
+        cacheKey,
+      });
+      const text = typeof cached?.text === 'string' ? cached.text.trim() : '';
+      if (text) {
+        setPanelState(panel, { text });
+        return;
+      }
+    }
+
     const { buffer, mimeType: rawMime } = await resolveAudioPayload(root);
     if (!buffer?.byteLength) {
       throw new Error('Empty audio');
@@ -327,7 +490,13 @@ async function transcribeVoiceRoot(root, panel, button) {
     const mimeType = (rawMime || 'audio/ogg').split(';')[0].trim() || 'audio/ogg';
     const ext = mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3' : 'ogg';
 
-    const result = await sendTranscribeRequest(panel, buffer, mimeType, `whatsapp-voice.${ext}`);
+    const result = await sendTranscribeRequest(
+      panel,
+      buffer,
+      mimeType,
+      `whatsapp-voice.${ext}`,
+      cacheKey,
+    );
 
     if (!result?.ok) {
       throw new Error(result?.error || extMessage('uiTranscriptError'));
@@ -341,24 +510,21 @@ async function transcribeVoiceRoot(root, panel, button) {
 }
 
 function placeTranscribeButton(root, button) {
-  const addon = root.querySelector('[data-testid="addon-bubble-container"]');
-  if (addon) {
-    addon.prepend(button);
-    return;
+  const footer = ensureCitepaneFooter(root);
+  if (button.parentElement !== footer) {
+    footer.prepend(button);
   }
-  const playBtn = findPlayButton(root);
-  if (playBtn?.parentElement) {
-    playBtn.parentElement.append(button);
-    return;
-  }
-  root.append(button);
 }
 
 function enhanceVoiceRoot(root) {
   if (!(root instanceof Element) || !isVoiceMessageRoot(root)) {
     return;
   }
-  if (root.getAttribute(CITEPANE_VOICE_ATTR) === '1' || root.querySelector(`.${CITEPANE_BTN_CLASS}`)) {
+
+  const existingButton = findCitepaneInRow(root, CITEPANE_BTN_CLASS);
+  // Already mounted (or leftover from older injectors): merge into one footer, drop clones.
+  if (root.getAttribute(CITEPANE_VOICE_ATTR) === '1' || existingButton) {
+    relocateCitepaneUi(root);
     root.setAttribute(CITEPANE_VOICE_ATTR, '1');
     return;
   }
@@ -379,6 +545,8 @@ function enhanceVoiceRoot(root) {
     transcribeVoiceRoot(root, panel, button);
   });
   placeTranscribeButton(root, button);
+  relocateCitepaneUi(root);
+  restoreCachedTranscript(root, panel).catch(() => {});
 }
 
 function scanVoiceMessages(root = document) {

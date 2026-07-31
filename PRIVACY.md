@@ -8,6 +8,7 @@ Citepane is a browser extension that runs locally in your Chromium profile.
 |------|--------|--------|
 | Settings (API URL, models, transcription engine, languages, theme) | `chrome.storage.sync` | Synced with your browser account if sync is enabled |
 | Local Whisper download consent | `chrome.storage.local` | Set only after you accept the on-device model download |
+| WhatsApp transcript cache | `chrome.storage.local` | Text transcripts keyed by message id / audio hash so Transcribe is not repeated; stays on your device |
 | Live selection / pending job (session) | `chrome.storage.session` | Cleared when the side panel session ends |
 | Page text / selection | Sent only to the API Base URL you configure | Never sent to a Citepane server |
 | WhatsApp Web voice audio (on Transcribe) | **On-device (default):** processed in an extension offscreen page with bundled Transformers.js; Whisper weights may be fetched from Hugging Face after you consent. **API mode:** sent to Transcription base URL or API Base URL (`/audio/transcriptions`) | Audio is not uploaded to a Citepane server |

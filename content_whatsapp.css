@@ -4,27 +4,54 @@
   font-family: system-ui, "Segoe UI", sans-serif;
 }
 
+/* One footer under the bubble, in WA's addon-bubble-container. */
+.citepane-wa-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 2px 4px 4px;
+  border: none;
+  position: relative;
+  z-index: 2;
+}
+
+[data-testid="addon-bubble-container"] > .citepane-wa-footer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.citepane-wa-footer[data-side="out"] {
+  align-items: flex-end;
+}
+
+.citepane-wa-footer[data-side="out"] .citepane-wa-transcript-text {
+  text-align: start;
+}
+
 .citepane-wa-transcribe {
   display: inline-flex;
   align-items: center;
-  margin: 6px 8px 2px;
-  padding: 4px 10px;
-  border: 1px solid rgba(0, 168, 132, 0.45);
-  border-radius: 16px;
-  background: rgba(0, 168, 132, 0.12);
-  color: #008f6f;
-  font-weight: 600;
-  font-size: 12px;
-  line-height: 1.2;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #53bdeb;
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.3;
   cursor: pointer;
   white-space: nowrap;
-  vertical-align: middle;
-  z-index: 2;
-  position: relative;
 }
 
 .citepane-wa-transcribe:hover:not(:disabled) {
-  background: rgba(0, 168, 132, 0.22);
+  text-decoration: underline;
+  background: transparent;
 }
 
 .citepane-wa-transcribe:disabled {
@@ -33,12 +60,13 @@
 }
 
 .citepane-wa-transcript {
-  margin: 6px 8px 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(17, 27, 33, 0.06);
-  border: 1px solid rgba(17, 27, 33, 0.08);
-  max-width: min(420px, 100%);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .citepane-wa-transcript.is-loading .citepane-wa-transcript-text {
@@ -47,32 +75,36 @@
 }
 
 .citepane-wa-transcript.is-error .citepane-wa-transcript-text {
-  color: #b42318;
+  color: #f15c6d;
 }
 
 .citepane-wa-transcript-text {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.4;
   color: inherit;
 }
 
 .citepane-wa-transcript-tools {
-  margin-top: 6px;
+  margin-top: 4px;
   display: flex;
   gap: 8px;
 }
 
+.citepane-wa-footer[data-side="out"] .citepane-wa-transcript-tools {
+  justify-content: flex-end;
+}
+
 .citepane-wa-copy {
-  padding: 2px 8px;
+  padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 0;
   background: transparent;
-  color: #008f6f;
-  font-weight: 600;
-  font-size: 12px;
+  color: #53bdeb;
+  font-weight: 500;
+  font-size: 12.5px;
   line-height: 1.2;
   cursor: pointer;
 }

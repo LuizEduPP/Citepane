@@ -16,6 +16,8 @@ const STORAGE_LAST_RESULT_KEY = 'lastResult';
 const STORAGE_LIVE_SELECTION_KEY = 'liveSelection';
 const STORAGE_CANCELLED_JOB_KEY = 'cancelledJobAt';
 const STORAGE_LOCAL_WHISPER_OK_KEY = 'localWhisperDownloadOk';
+const STORAGE_WA_TRANSCRIPT_CACHE_KEY = 'waTranscriptCache';
+const WA_TRANSCRIPT_CACHE_MAX = 300;
 
 const DEFAULT_BASE_URL = '';
 const DEFAULT_MODEL = '';
@@ -74,6 +76,7 @@ const MESSAGE_TRANSCRIBE_AUDIO = 'TRANSCRIBE_AUDIO';
 const MESSAGE_INJECT_WA_AUDIO_HOOK = 'INJECT_WA_AUDIO_HOOK';
 const MESSAGE_ACCEPT_LOCAL_WHISPER = 'ACCEPT_LOCAL_WHISPER';
 const MESSAGE_OFFSCREEN_TRANSCRIBE = 'OFFSCREEN_TRANSCRIBE';
+const MESSAGE_GET_WA_TRANSCRIPT = 'GET_WA_TRANSCRIPT';
 const SIDEPANEL_PORT_NAME = 'citepane-sidepanel';
 
 const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost']);
@@ -136,6 +139,64 @@ function base64ToUint8Array(base64) {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function readWaTranscriptCache() {
+  const stored = await chrome.storage.local.get(STORAGE_WA_TRANSCRIPT_CACHE_KEY);
+  const cache = stored[STORAGE_WA_TRANSCRIPT_CACHE_KEY];
+  return cache && typeof cache === 'object' && !Array.isArray(cache) ? cache : {};
+}
+
+async function getWaTranscriptByKeys(keys) {
+  const cache = await readWaTranscriptCache();
+  for (const key of keys) {
+    if (!key) {
+      continue;
+    }
+    const text = cache[key]?.text;
+    if (typeof text === 'string' && text.trim()) {
+      return text.trim();
+    }
+  }
+  return '';
+}
+
+async function putWaTranscript(keys, text, meta = {}) {
+  const trimmed = typeof text === 'string' ? text.trim() : '';
+  if (!trimmed) {
+    return;
+  }
+  const validKeys = [...new Set(keys.filter((key) => typeof key === 'string' && key.trim()))];
+  if (!validKeys.length) {
+    return;
+  }
+
+  const cache = await readWaTranscriptCache();
+  const entry = {
+    text: trimmed,
+    at: Date.now(),
+    ...meta,
+  };
+  for (const key of validKeys) {
+    cache[key] = entry;
+  }
+
+  const entries = Object.entries(cache);
+  if (entries.length > WA_TRANSCRIPT_CACHE_MAX) {
+    entries
+      .sort((a, b) => (a[1]?.at || 0) - (b[1]?.at || 0))
+      .slice(0, entries.length - WA_TRANSCRIPT_CACHE_MAX)
+      .forEach(([key]) => {
+        delete cache[key];
+      });
+  }
+
+  await chrome.storage.local.set({ [STORAGE_WA_TRANSCRIPT_CACHE_KEY]: cache });
 }
 
 /** postMessage source for wa_audio_hook.js ↔ content_whatsapp.js */
