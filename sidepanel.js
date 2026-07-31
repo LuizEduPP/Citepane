@@ -1356,7 +1356,19 @@ function applyLiveSelection(text) {
   }
 
   lastLiveSelection = trimmed;
-  clearGeneratedOutput();
+  // Soft clear only — never cancel a pending context-menu / RUN_ACTION job here.
+  // (Panel open + selection sync used to race and kill the job before AI ran.)
+  setActionLabel('');
+  setStatus('');
+  clearPanelError();
+  latestResultText = '';
+  els.result.replaceChildren();
+  setCopyAvailable(false);
+  if (els.resultChrome) {
+    els.resultChrome.hidden = true;
+  }
+  els.resultWrap.hidden = true;
+  renderSources([]);
 
   els.idle.hidden = true;
   els.job.hidden = false;
@@ -1447,12 +1459,9 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   }
 
   if (changes[STORAGE_PENDING_JOB_KEY]?.newValue) {
-    const job = changes[STORAGE_PENDING_JOB_KEY].newValue;
-    const jobSelection = (job.selectionText || '').trim();
-    // Ignore stale jobs after the user already selected different text.
-    if (!lastLiveSelection || !jobSelection || jobSelection === lastLiveSelection) {
-      enqueueJob(job);
-    }
+    // Jobs are explicit user actions (context menu or panel). Always run them —
+    // do not gate on lastLiveSelection (sticky selection races dropped context-menu AI).
+    enqueueJob(changes[STORAGE_PENDING_JOB_KEY].newValue);
   }
 });
 

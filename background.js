@@ -199,6 +199,15 @@ async function handleActionClick(actionId, selectionText, tab) {
   // Stay strictly newer than any cancel watermark (same-ms races).
   const createdAt = Math.max(Date.now(), cancelledJobAtMem + 1);
 
+  // Keep side panel selection in sync with the action (context-menu path).
+  if (trimmed) {
+    await writeLiveSelection({
+      text: trimmed,
+      url: tab.url || '',
+      tabId: tab.id,
+    });
+  }
+
   const loadingJob = {
     actionId: action.id,
     actionTitleKey: action.titleKey,
