@@ -3,7 +3,7 @@
   "default_locale": "en",
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "permissions": [
     "contextMenus",
     "sidePanel",
@@ -17,6 +17,7 @@
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
+    "https://web.whatsapp.com/*",
     "https://html.duckduckgo.com/*",
     "https://lite.duckduckgo.com/*",
     "https://api.duckduckgo.com/*",
@@ -25,6 +26,12 @@
   "optional_host_permissions": [
     "http://*/*",
     "https://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["wa_audio_hook.js"],
+      "matches": ["https://web.whatsapp.com/*"]
+    }
   ],
   "background": {
     "service_worker": "background.js"
@@ -49,6 +56,12 @@
     {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["defaults.js", "content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": ["defaults.js", "content_whatsapp.js"],
+      "css": ["content_whatsapp.css"],
       "run_at": "document_idle"
     }
   ]

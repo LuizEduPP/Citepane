@@ -163,5 +163,23 @@
   },
   "uiActions": {
     "message": "Was möchtest du tun?"
+  },
+  "uiTranscriptionBaseUrl": {
+    "message": "Transkriptions-Basis-URL (optional)"
+  },
+  "uiTranscriptionModel": {
+    "message": "Transkriptionsmodell (Whisper)"
+  },
+  "uiTranscribe": {
+    "message": "Transkribieren"
+  },
+  "uiTranscribing": {
+    "message": "Transkribiert…"
+  },
+  "uiTranscriptCopy": {
+    "message": "Transkript kopieren"
+  },
+  "uiTranscriptError": {
+    "message": "Dieses Audio konnte nicht transkribiert werden."
   }
 }

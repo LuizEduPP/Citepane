@@ -19,6 +19,8 @@ const STORAGE_CANCELLED_JOB_KEY = 'cancelledJobAt';
 const DEFAULT_BASE_URL = '';
 const DEFAULT_MODEL = '';
 const DEFAULT_API_KEY = '';
+const DEFAULT_TRANSCRIPTION_MODEL = 'whisper';
+const DEFAULT_TRANSCRIPTION_BASE_URL = '';
 const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
 const DEFAULT_THEME = 'auto';
@@ -37,9 +39,39 @@ const MESSAGE_GET_PAGE_CONTEXT = 'GET_PAGE_CONTEXT';
 const MESSAGE_SELECTION_CHANGED = 'SELECTION_CHANGED';
 const MESSAGE_GET_LIVE_SELECTION = 'GET_LIVE_SELECTION';
 const MESSAGE_CANCEL_JOB = 'CANCEL_JOB';
+const MESSAGE_TRANSCRIBE_AUDIO = 'TRANSCRIBE_AUDIO';
+const MESSAGE_INJECT_WA_AUDIO_HOOK = 'INJECT_WA_AUDIO_HOOK';
 const SIDEPANEL_PORT_NAME = 'citepane-sidepanel';
 
 const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost']);
+
+/** True while this content/extension page still has a live chrome.runtime. */
+function isExtensionContextValid() {
+  try {
+    const runtime = globalThis.chrome?.runtime;
+    return Boolean(runtime?.id) && typeof runtime.sendMessage === 'function';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Safe runtime messaging for content scripts.
+ * After extension reload, chrome.runtime may be undefined or throw synchronously
+ * ("Extension context invalidated") — .catch() alone does not help.
+ */
+function runtimeSendMessage(payload) {
+  try {
+    const runtime = globalThis.chrome?.runtime;
+    const sendMessage = runtime?.sendMessage;
+    if (!runtime?.id || typeof sendMessage !== 'function') {
+      return Promise.resolve(null);
+    }
+    return Promise.resolve(sendMessage.call(runtime, payload)).catch(() => null);
+  } catch {
+    return Promise.resolve(null);
+  }
+}
 
 const LANGUAGES = Object.freeze([
   Object.freeze({ code: 'en', label: 'English' }),
@@ -224,6 +256,8 @@ function getDefaultSettings() {
     baseUrl: DEFAULT_BASE_URL,
     model: DEFAULT_MODEL,
     apiKey: DEFAULT_API_KEY,
+    transcriptionBaseUrl: DEFAULT_TRANSCRIPTION_BASE_URL,
+    transcriptionModel: DEFAULT_TRANSCRIPTION_MODEL,
     responseLanguage: DEFAULT_RESPONSE_LANGUAGE,
     uiLanguage: DEFAULT_UI_LANGUAGE,
     theme: DEFAULT_THEME,
@@ -271,6 +305,19 @@ function mergeSettings(raw) {
       ? normalizeModel(incoming.model)
       : defaults.model,
     apiKey: typeof incoming.apiKey === 'string' ? incoming.apiKey : defaults.apiKey,
+    transcriptionBaseUrl:
+      typeof incoming.transcriptionBaseUrl === 'string' && incoming.transcriptionBaseUrl.trim()
+        ? normalizeBaseUrl(incoming.transcriptionBaseUrl)
+        : defaults.transcriptionBaseUrl,
+    transcriptionModel: (() => {
+      const raw =
+        typeof incoming.transcriptionModel === 'string' ? incoming.transcriptionModel.trim() : '';
+      // Old OpenAI default; local backends expect ids like "whisper".
+      if (!raw || raw === 'whisper-1') {
+        return defaults.transcriptionModel;
+      }
+      return raw;
+    })(),
     responseLanguage:
       incoming.responseLanguage === 'auto' || LANGUAGE_BY_CODE[incoming.responseLanguage]
         ? incoming.responseLanguage
@@ -397,8 +444,32 @@ function chatCompletionsUrl(baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}/chat/completions`;
 }
 
+/** STT host: dedicated transcription base URL, else main API base URL. */
+function resolveTranscriptionBaseUrl(settings) {
+  const dedicated =
+    typeof settings?.transcriptionBaseUrl === 'string' ? settings.transcriptionBaseUrl.trim() : '';
+  if (dedicated) {
+    return normalizeBaseUrl(dedicated);
+  }
+  const base = typeof settings?.baseUrl === 'string' ? settings.baseUrl.trim() : '';
+  if (base) {
+    return normalizeBaseUrl(base);
+  }
+  throw new Error('Set API base URL or Transcription base URL in Citepane Settings.');
+}
+
+function transcriptionsUrl(baseUrl) {
+  return `${normalizeBaseUrl(baseUrl)}/audio/transcriptions`;
+}
+
 function modelsUrl(baseUrl) {
   return `${normalizeBaseUrl(baseUrl)}/models`;
+}
+
+/** Whisper / OpenAI transcription language hint (ISO-639-1 when possible). */
+function transcriptionLanguageHint(responseLanguage) {
+  const code = resolveResponseLanguage(responseLanguage);
+  return code.split('-')[0].toLowerCase();
 }
 
 function truncateText(text, maxChars) {

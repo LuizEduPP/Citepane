@@ -63,26 +63,38 @@ function readLiveSelectionText() {
 
 let lastPublishedSelection = null;
 let selectionPublishTimer = null;
+let selectionBridgeDead = false;
 
 function publishLiveSelection({ force = false } = {}) {
+  if (selectionBridgeDead) {
+    return;
+  }
+  // WhatsApp Web fires selectionchange constantly; text actions aren't used there.
+  if (location.hostname === 'web.whatsapp.com') {
+    return;
+  }
+  if (!isExtensionContextValid()) {
+    selectionBridgeDead = true;
+    return;
+  }
+
   const selectionText = readLiveSelectionText();
   if (!force && selectionText === lastPublishedSelection) {
     return;
   }
   lastPublishedSelection = selectionText;
 
-  chrome.runtime
-    .sendMessage({
-      type: MESSAGE_SELECTION_CHANGED,
-      selectionText,
-      pageUrl: location.href,
-    })
-    .catch(() => {
-      // Side panel / service worker may be asleep.
-    });
+  runtimeSendMessage({
+    type: MESSAGE_SELECTION_CHANGED,
+    selectionText,
+    pageUrl: location.href,
+  });
 }
 
 function scheduleLiveSelectionPublish() {
+  if (selectionBridgeDead) {
+    return;
+  }
   if (selectionPublishTimer) {
     clearTimeout(selectionPublishTimer);
   }
@@ -104,39 +116,43 @@ window.addEventListener('focus', () => {
   publishLiveSelection({ force: true });
 });
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (!message) {
-    return false;
-  }
+try {
+  globalThis.chrome?.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+    if (!message || !isExtensionContextValid()) {
+      return false;
+    }
 
-  if (message.type === MESSAGE_GET_LIVE_SELECTION) {
+    if (message.type === MESSAGE_GET_LIVE_SELECTION) {
+      try {
+        sendResponse({
+          ok: true,
+          selectionText: readLiveSelectionText(),
+          pageUrl: location.href,
+        });
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return false;
+    }
+
+    if (message.type !== MESSAGE_GET_PAGE_CONTEXT) {
+      return false;
+    }
+
     try {
-      sendResponse({
-        ok: true,
-        selectionText: readLiveSelectionText(),
-        pageUrl: location.href,
-      });
+      sendResponse({ ok: true, pageContext: collectPageContext() });
     } catch (error) {
       sendResponse({
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
     return false;
-  }
-
-  if (message.type !== MESSAGE_GET_PAGE_CONTEXT) {
-    return false;
-  }
-
-  try {
-    sendResponse({ ok: true, pageContext: collectPageContext() });
-  } catch (error) {
-    sendResponse({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
-
-  return false;
-});
+  });
+} catch {
+  selectionBridgeDead = true;
+}

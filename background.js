@@ -184,6 +184,99 @@ async function openSidePanel(tabId) {
   await chrome.sidePanel.open({ tabId });
 }
 
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+async function transcribeAudioMessage(message) {
+  const settings = await readSettings();
+  let sttBaseUrl;
+  try {
+    sttBaseUrl = resolveTranscriptionBaseUrl(settings);
+  } catch (error) {
+    throw error instanceof Error ? error : new Error(String(error));
+  }
+
+  const model = (settings.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL).trim();
+  if (!model) {
+    throw new Error('Set a transcription model in Citepane Settings.');
+  }
+
+  const audioBase64 = typeof message.audioBase64 === 'string' ? message.audioBase64 : '';
+  if (!audioBase64) {
+    throw new Error('Missing audio payload.');
+  }
+
+  const mimeType =
+    typeof message.mimeType === 'string' && message.mimeType.trim()
+      ? message.mimeType.trim()
+      : 'audio/ogg';
+  const fileName =
+    typeof message.fileName === 'string' && message.fileName.trim()
+      ? message.fileName.trim()
+      : 'voice.ogg';
+
+  await ensureApiHostPermission(sttBaseUrl, { interactive: false });
+
+  const bytes = base64ToUint8Array(audioBase64);
+  const file = new File([bytes], fileName, { type: mimeType });
+  const form = new FormData();
+  form.append('file', file);
+  form.append('model', model);
+  form.append('language', transcriptionLanguageHint(settings.responseLanguage));
+
+  const headers = {};
+  if (settings.apiKey.trim()) {
+    headers.Authorization = `Bearer ${settings.apiKey.trim()}`;
+  }
+
+  const response = await fetch(transcriptionsUrl(sttBaseUrl), {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  const bodyText = await response.text();
+  if (!response.ok) {
+    let detail = bodyText.slice(0, 400);
+    try {
+      const err = JSON.parse(bodyText)?.error?.message;
+      if (typeof err === 'string' && err.trim()) {
+        detail = err.trim();
+      }
+    } catch {
+      // keep raw body slice
+    }
+    if (/not found|model .* not found/i.test(detail)) {
+      throw new Error(
+        `STT model "${model}" not found on your API. ` +
+          `Chat models (llama/granite) cannot transcribe. ` +
+          `Load a Whisper/STT model and set it in Citepane Settings → Transcription model.`,
+      );
+    }
+    throw new Error(`Transcription failed HTTP ${response.status}: ${detail}`);
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(bodyText);
+  } catch {
+    throw new Error('Transcription response was not JSON.');
+  }
+
+  const text = typeof payload.text === 'string' ? payload.text.trim() : '';
+  if (!text) {
+    throw new Error('Transcription returned empty text.');
+  }
+
+  return text;
+}
+
 async function handleActionClick(actionId, selectionText, tab) {
   if (!tab?.id) {
     throw new Error('Active tab is required');
@@ -495,6 +588,40 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         await handleActionClick(actionId, selectionText, tab);
         sendResponse({ ok: true });
       })
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === MESSAGE_TRANSCRIBE_AUDIO) {
+    transcribeAudioMessage(message)
+      .then((text) => sendResponse({ ok: true, text }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === MESSAGE_INJECT_WA_AUDIO_HOOK) {
+    const tabId = sender.tab?.id;
+    if (!tabId) {
+      sendResponse({ ok: false, error: 'Missing tab' });
+      return false;
+    }
+    chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        files: ['wa_audio_hook.js'],
+      })
+      .then(() => sendResponse({ ok: true }))
       .catch((error) =>
         sendResponse({
           ok: false,
