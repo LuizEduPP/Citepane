@@ -12,13 +12,13 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: 8px;
   box-sizing: border-box;
   width: var(--citepane-wa-bubble-width, auto);
   max-width: min(85%, 420px);
   min-width: 120px;
-  margin: 2px 0 0;
-  padding: 0;
+  margin: 10px 0 4px;
+  padding: 0 2px;
   border: none;
   position: relative;
   z-index: 2;
@@ -42,46 +42,71 @@
   margin-inline-start: 0;
 }
 
-.citepane-wa-transcribe {
+/* Beat WA's global button resets — real chip, not a naked link. */
+button.citepane-wa-transcribe {
+  all: unset;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
-  margin: 0 2px;
-  padding: 2px 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid rgba(134, 150, 160, 0.35);
+  border-radius: 18px;
+  background: rgba(32, 44, 51, 0.92);
   color: #53bdeb;
-  font-weight: 500;
-  font-size: 12.5px;
-  line-height: 1.3;
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, "Lucida Grande", Arial, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.18);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.citepane-wa-transcribe:hover:not(:disabled) {
-  text-decoration: underline;
-  background: transparent;
+button.citepane-wa-transcribe:hover:not(:disabled) {
+  background: rgba(42, 56, 64, 0.98);
+  border-color: rgba(83, 189, 235, 0.45);
+  text-decoration: none;
 }
 
-.citepane-wa-transcribe:disabled {
-  opacity: 0.65;
+button.citepane-wa-transcribe:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+button.citepane-wa-transcribe:disabled {
+  opacity: 0.7;
   cursor: wait;
+}
+
+.citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe {
+  background: rgba(0, 92, 75, 0.85);
+  border-color: rgba(134, 150, 160, 0.28);
+}
+
+.citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe:hover:not(:disabled) {
+  background: rgba(0, 110, 90, 0.95);
+  border-color: rgba(83, 189, 235, 0.4);
 }
 
 .citepane-wa-footer.has-transcript .citepane-wa-transcribe {
   display: none;
 }
 
-/* Follow-up bubble under the PTT player */
+/* Follow-up bubble under the PTT player — spaced from the voice bubble */
 .citepane-wa-transcript {
   display: none;
-  margin: 0;
-  padding: 6px 9px 8px;
+  margin: 2px 0 0;
+  padding: 8px 11px 10px;
   border: none;
-  border-radius: 7.5px;
+  border-radius: 8px;
   width: 100%;
   box-sizing: border-box;
-  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13);
+  box-shadow: 0 1px 1px rgba(11, 20, 26, 0.18);
   background: #202c33;
   color: inherit;
 }
@@ -127,12 +152,12 @@
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 14.2px;
-  line-height: 1.35;
+  line-height: 1.4;
   color: inherit;
 }
 
 .citepane-wa-transcript-tools {
-  margin-top: 4px;
+  margin-top: 8px;
   display: flex;
   gap: 8px;
 }
@@ -141,20 +166,27 @@
   justify-content: flex-end;
 }
 
-.citepane-wa-copy {
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+button.citepane-wa-copy {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid rgba(134, 150, 160, 0.3);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.18);
   color: #53bdeb;
-  font-weight: 500;
-  font-size: 12.5px;
+  font-family: "Segoe UI", "Helvetica Neue", Helvetica, "Lucida Grande", Arial, sans-serif;
+  font-weight: 600;
+  font-size: 12px;
   line-height: 1.2;
   cursor: pointer;
+  user-select: none;
 }
 
-.citepane-wa-copy:hover {
-  text-decoration: underline;
+button.citepane-wa-copy:hover {
+  border-color: rgba(83, 189, 235, 0.45);
+  text-decoration: none;
 }
 
 /* Light WhatsApp theme */
@@ -162,6 +194,21 @@ html[data-theme="light"] .citepane-wa-footer,
 body.light .citepane-wa-footer,
 .light .citepane-wa-footer {
   color: #111b21;
+}
+
+html[data-theme="light"] button.citepane-wa-transcribe,
+body.light button.citepane-wa-transcribe,
+.light button.citepane-wa-transcribe {
+  background: #ffffff;
+  border-color: rgba(11, 20, 26, 0.12);
+  color: #027eb5;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.1);
+}
+
+html[data-theme="light"] .citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe,
+body.light .citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe,
+.light .citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe {
+  background: #d9fdd3;
 }
 
 html[data-theme="light"] .citepane-wa-footer[data-side="out"] .citepane-wa-transcript,
@@ -176,9 +223,27 @@ body.light .citepane-wa-footer[data-side="in"] .citepane-wa-transcript,
   background: #ffffff;
 }
 
+html[data-theme="light"] button.citepane-wa-copy,
+body.light button.citepane-wa-copy,
+.light button.citepane-wa-copy {
+  background: rgba(11, 20, 26, 0.04);
+  border-color: rgba(11, 20, 26, 0.12);
+  color: #027eb5;
+}
+
 @media (prefers-color-scheme: light) {
   html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer {
     color: #111b21;
+  }
+
+  html:not([data-theme="dark"]):not(.dark) button.citepane-wa-transcribe {
+    background: #ffffff;
+    border-color: rgba(11, 20, 26, 0.12);
+    color: #027eb5;
+  }
+
+  html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer[data-side="out"] button.citepane-wa-transcribe {
+    background: #d9fdd3;
   }
 
   html:not([data-theme="dark"]):not(.dark) .citepane-wa-footer[data-side="out"] .citepane-wa-transcript {
