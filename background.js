@@ -184,24 +184,8 @@ async function openSidePanel(tabId) {
   await chrome.sidePanel.open({ tabId });
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-async function transcribeAudioMessage(message) {
-  const settings = await readSettings();
-  let sttBaseUrl;
-  try {
-    sttBaseUrl = resolveTranscriptionBaseUrl(settings);
-  } catch (error) {
-    throw error instanceof Error ? error : new Error(String(error));
-  }
-
+async function transcribeViaApi(message, settings) {
+  const sttBaseUrl = resolveTranscriptionBaseUrl(settings);
   const model = (settings.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL).trim();
   if (!model) {
     throw new Error('Set a transcription model in Citepane Settings.');
@@ -252,11 +236,16 @@ async function transcribeAudioMessage(message) {
     } catch {
       // keep raw body slice
     }
-    if (/not found|model .* not found/i.test(detail)) {
+    if (/unsupported media type|application\/json/i.test(detail)) {
       throw new Error(
-        `STT model "${model}" not found on your API. ` +
-          `Chat models (llama/granite) cannot transcribe. ` +
-          `Load a Whisper/STT model and set it in Citepane Settings → Transcription model.`,
+        'This server rejects OpenAI multipart STT (common with LM Studio). ' +
+          'Use Settings → Transcription engine → On-device Whisper, or point Transcription base URL at a real Whisper API.',
+      );
+    }
+    if (/not found|model .* not found|unexpected endpoint/i.test(detail)) {
+      throw new Error(
+        `STT unavailable on that API (${detail.slice(0, 160)}). ` +
+          `Prefer On-device Whisper in Citepane Settings.`,
       );
     }
     throw new Error(`Transcription failed HTTP ${response.status}: ${detail}`);
@@ -273,8 +262,88 @@ async function transcribeAudioMessage(message) {
   if (!text) {
     throw new Error('Transcription returned empty text.');
   }
-
   return text;
+}
+
+async function hasLocalWhisperConsent() {
+  const stored = await chrome.storage.local.get(STORAGE_LOCAL_WHISPER_OK_KEY);
+  return Boolean(stored[STORAGE_LOCAL_WHISPER_OK_KEY]);
+}
+
+async function acceptLocalWhisperDownload() {
+  const granted = await chrome.permissions.request({
+    origins: [...LOCAL_WHISPER_HOST_ORIGINS],
+  });
+  if (!granted) {
+    throw new Error('Permission to download the Whisper model was denied.');
+  }
+  await chrome.storage.local.set({ [STORAGE_LOCAL_WHISPER_OK_KEY]: true });
+  return true;
+}
+
+async function ensureOffscreenStt() {
+  if (!chrome.offscreen?.createDocument) {
+    throw new Error('On-device transcription needs a Chromium build with offscreen documents.');
+  }
+  const url = chrome.runtime.getURL(OFFSCREEN_STT_PATH);
+  const existing = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [url],
+  });
+  if (existing.length) {
+    return;
+  }
+  await chrome.offscreen.createDocument({
+    url: OFFSCREEN_STT_PATH,
+    reasons: [chrome.offscreen.Reason.WORKERS],
+    justification: 'Run on-device Whisper speech-to-text for WhatsApp voice messages',
+  });
+  // Let the offscreen module boot before the first message.
+  await new Promise((resolve) => setTimeout(resolve, 75));
+}
+
+async function transcribeViaLocalWhisper(message, settings) {
+  if (!(await hasLocalWhisperConsent())) {
+    const error = new Error(
+      'On-device Whisper needs a one-time model download (~40–250 MB from Hugging Face).',
+    );
+    error.code = 'NEEDS_LOCAL_WHISPER_CONSENT';
+    throw error;
+  }
+
+  const audioBase64 = typeof message.audioBase64 === 'string' ? message.audioBase64 : '';
+  if (!audioBase64) {
+    throw new Error('Missing audio payload.');
+  }
+
+  await ensureOffscreenStt();
+
+  const payload = {
+    type: MESSAGE_OFFSCREEN_TRANSCRIBE,
+    audioBase64,
+    mimeType: message.mimeType,
+    modelId: settings.localWhisperModel || DEFAULT_LOCAL_WHISPER_MODEL,
+    language: settings.responseLanguage || 'auto',
+  };
+
+  let result = await chrome.runtime.sendMessage(payload);
+  if (!result) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    result = await chrome.runtime.sendMessage(payload);
+  }
+
+  if (!result?.ok) {
+    throw new Error(result?.error || 'On-device transcription failed.');
+  }
+  return result.text;
+}
+
+async function transcribeAudioMessage(message) {
+  const settings = await readSettings();
+  if (settings.transcriptionEngine === 'api') {
+    return transcribeViaApi(message, settings);
+  }
+  return transcribeViaLocalWhisper(message, settings);
 }
 
 async function handleActionClick(actionId, selectionText, tab) {
@@ -600,6 +669,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === MESSAGE_TRANSCRIBE_AUDIO) {
     transcribeAudioMessage(message)
       .then((text) => sendResponse({ ok: true, text }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          needsConsent: error?.code === 'NEEDS_LOCAL_WHISPER_CONSENT',
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    return true;
+  }
+
+  if (message?.type === MESSAGE_ACCEPT_LOCAL_WHISPER) {
+    acceptLocalWhisperDownload()
+      .then(() => sendResponse({ ok: true }))
       .catch((error) =>
         sendResponse({
           ok: false,

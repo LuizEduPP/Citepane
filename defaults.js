@@ -15,17 +15,48 @@ const STORAGE_PENDING_JOB_KEY = 'pendingJob';
 const STORAGE_LAST_RESULT_KEY = 'lastResult';
 const STORAGE_LIVE_SELECTION_KEY = 'liveSelection';
 const STORAGE_CANCELLED_JOB_KEY = 'cancelledJobAt';
+const STORAGE_LOCAL_WHISPER_OK_KEY = 'localWhisperDownloadOk';
 
 const DEFAULT_BASE_URL = '';
 const DEFAULT_MODEL = '';
 const DEFAULT_API_KEY = '';
+const DEFAULT_TRANSCRIPTION_ENGINE = 'local';
 const DEFAULT_TRANSCRIPTION_MODEL = 'whisper';
 const DEFAULT_TRANSCRIPTION_BASE_URL = '';
+const DEFAULT_LOCAL_WHISPER_MODEL = 'Xenova/whisper-tiny';
 const DEFAULT_RESPONSE_LANGUAGE = 'auto';
 const DEFAULT_UI_LANGUAGE = 'auto';
 const DEFAULT_THEME = 'auto';
 
 const THEME_OPTIONS = Object.freeze(['auto', 'light', 'dark']);
+const TRANSCRIPTION_ENGINE_OPTIONS = Object.freeze(['local', 'api']);
+const LOCAL_WHISPER_MODELS = Object.freeze([
+  Object.freeze({
+    id: 'Xenova/whisper-tiny',
+    labelKey: 'uiLocalWhisperTiny',
+    approxMb: 40,
+  }),
+  Object.freeze({
+    id: 'Xenova/whisper-base',
+    labelKey: 'uiLocalWhisperBase',
+    approxMb: 75,
+  }),
+  Object.freeze({
+    id: 'Xenova/whisper-small',
+    labelKey: 'uiLocalWhisperSmall',
+    approxMb: 250,
+  }),
+]);
+
+const LOCAL_WHISPER_HOST_ORIGINS = Object.freeze([
+  'https://huggingface.co/*',
+  'https://*.huggingface.co/*',
+  'https://hf.co/*',
+  'https://*.hf.co/*',
+]);
+
+const OFFSCREEN_STT_PATH = 'offscreen-stt.html';
+const OFFSCREEN_STT_REASON = 'WORKERS';
 
 const PAGE_CONTEXT_MAX_CHARS = 2000;
 const PAGE_BODY_MAX_CHARS = 12000;
@@ -41,6 +72,8 @@ const MESSAGE_GET_LIVE_SELECTION = 'GET_LIVE_SELECTION';
 const MESSAGE_CANCEL_JOB = 'CANCEL_JOB';
 const MESSAGE_TRANSCRIBE_AUDIO = 'TRANSCRIBE_AUDIO';
 const MESSAGE_INJECT_WA_AUDIO_HOOK = 'INJECT_WA_AUDIO_HOOK';
+const MESSAGE_ACCEPT_LOCAL_WHISPER = 'ACCEPT_LOCAL_WHISPER';
+const MESSAGE_OFFSCREEN_TRANSCRIBE = 'OFFSCREEN_TRANSCRIBE';
 const SIDEPANEL_PORT_NAME = 'citepane-sidepanel';
 
 const LOCAL_HOSTNAMES = new Set(['127.0.0.1', 'localhost']);
@@ -73,6 +106,41 @@ function runtimeSendMessage(payload) {
   }
 }
 
+/** Safe chrome.i18n for content scripts (context may be invalidated). */
+function extMessage(key) {
+  try {
+    return globalThis.chrome?.i18n?.getMessage?.(key) || key;
+  } catch {
+    return key;
+  }
+}
+
+function formatCaught(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/** postMessage source for wa_audio_hook.js ↔ content_whatsapp.js */
+const WA_AUDIO_HOOK_SOURCE = 'citepane-wa-audio';
+
 const LANGUAGES = Object.freeze([
   Object.freeze({ code: 'en', label: 'English' }),
   Object.freeze({ code: 'pt-BR', label: 'Português (Brasil)' }),
@@ -99,7 +167,7 @@ const GROUNDING_RULE =
 
 const MARKDOWN_FORMAT_RULE =
   'Format the answer in Markdown when helpful (headings, bullet lists, numbered steps, bold, inline code, links). ' +
-  'Prefer short links: [source title](https://example.com/path). Do not dump raw tracking URLs. ' +
+  'Prefer short links: [title](https://example.com/path). Do not dump raw tracking URLs. ' +
   'Do not wrap the entire answer in a fenced code block.';
 
 const ACTIONS = Object.freeze([
@@ -256,8 +324,10 @@ function getDefaultSettings() {
     baseUrl: DEFAULT_BASE_URL,
     model: DEFAULT_MODEL,
     apiKey: DEFAULT_API_KEY,
+    transcriptionEngine: DEFAULT_TRANSCRIPTION_ENGINE,
     transcriptionBaseUrl: DEFAULT_TRANSCRIPTION_BASE_URL,
     transcriptionModel: DEFAULT_TRANSCRIPTION_MODEL,
+    localWhisperModel: DEFAULT_LOCAL_WHISPER_MODEL,
     responseLanguage: DEFAULT_RESPONSE_LANGUAGE,
     uiLanguage: DEFAULT_UI_LANGUAGE,
     theme: DEFAULT_THEME,
@@ -305,6 +375,9 @@ function mergeSettings(raw) {
       ? normalizeModel(incoming.model)
       : defaults.model,
     apiKey: typeof incoming.apiKey === 'string' ? incoming.apiKey : defaults.apiKey,
+    transcriptionEngine: TRANSCRIPTION_ENGINE_OPTIONS.includes(incoming.transcriptionEngine)
+      ? incoming.transcriptionEngine
+      : defaults.transcriptionEngine,
     transcriptionBaseUrl:
       typeof incoming.transcriptionBaseUrl === 'string' && incoming.transcriptionBaseUrl.trim()
         ? normalizeBaseUrl(incoming.transcriptionBaseUrl)
@@ -317,6 +390,14 @@ function mergeSettings(raw) {
         return defaults.transcriptionModel;
       }
       return raw;
+    })(),
+    localWhisperModel: (() => {
+      const raw =
+        typeof incoming.localWhisperModel === 'string' ? incoming.localWhisperModel.trim() : '';
+      if (LOCAL_WHISPER_MODELS.some((item) => item.id === raw)) {
+        return raw;
+      }
+      return defaults.localWhisperModel;
     })(),
     responseLanguage:
       incoming.responseLanguage === 'auto' || LANGUAGE_BY_CODE[incoming.responseLanguage]

@@ -168,7 +168,7 @@
     "message": "Transcription base URL (optional)"
   },
   "uiTranscriptionModel": {
-    "message": "Transcription model (Whisper)"
+    "message": "Transcription model (API)"
   },
   "uiTranscribe": {
     "message": "Transcribe"
@@ -181,5 +181,32 @@
   },
   "uiTranscriptError": {
     "message": "Could not transcribe this audio."
+  },
+  "uiTranscriptionEngine": {
+    "message": "Transcription engine"
+  },
+  "uiTranscriptionEngineLocal": {
+    "message": "On-device Whisper (download once)"
+  },
+  "uiTranscriptionEngineApi": {
+    "message": "API (/audio/transcriptions)"
+  },
+  "uiLocalWhisperModel": {
+    "message": "On-device Whisper size"
+  },
+  "uiLocalWhisperTiny": {
+    "message": "Tiny (fast)"
+  },
+  "uiLocalWhisperBase": {
+    "message": "Base (balanced)"
+  },
+  "uiLocalWhisperSmall": {
+    "message": "Small (better quality)"
+  },
+  "uiWhisperDownloadConfirm": {
+    "message": "Citepane will download an on-device Whisper model from Hugging Face (about 40–250 MB, cached in the browser). Continue?"
+  },
+  "uiWhisperDownloadDenied": {
+    "message": "On-device Whisper download was cancelled."
   }
 }

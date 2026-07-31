@@ -12,7 +12,7 @@ Citepane is a Chromium MV3 extension. Select text on any page, pick an action, a
 - **Sources** — Find images / Find videos (DuckDuckGo gallery)
 - **Writing** — Summarize, Summarize page, Key points, Simplify, Improve writing, Improve prompt
 - **Translate** — Choose a target language from the submenu
-- **WhatsApp Web** — Transcribe voice messages in-page via Whisper (`/audio/transcriptions`)
+- **WhatsApp Web** — Transcribe voice messages in-page (on-device Whisper by default, or an STT API)
 - **Side panel** — Live selection preview, cancel in flight, Markdown answers, copy, light/dark/auto theme
 - **Local-first** — You own the model endpoint; Citepane has no cloud backend
 
@@ -41,8 +41,10 @@ Citepane is a Chromium MV3 extension. Select text on any page, pick an action, a
 |---------|---------|
 | API base URL | empty (required for chat / fallback STT) |
 | Model | empty (loaded from `{Base URL}/models`) |
-| Transcription base URL | empty (optional; else uses API base URL → `/audio/transcriptions`) |
-| Transcription model | `whisper` (Whisper/STT id on the STT host — not a chat model) |
+| Transcription engine | On-device Whisper (default) or API |
+| On-device Whisper size | `Xenova/whisper-tiny` (~40 MB, downloaded once after consent) |
+| Transcription base URL | empty (API mode only; else uses API base URL → `/audio/transcriptions`) |
+| Transcription model | `whisper` (API mode only) |
 | API key | empty (usually fine for local servers) |
 | Answer language | `auto` |
 | Interface language | `auto` (`en`, `pt-BR`, `pt-PT`, `es`, `fr`, `de`) |
@@ -65,6 +67,7 @@ Vanilla JS, no build step.
 | `background.js` | Context menus, jobs, page context, cancel |
 | `content.js` | Selection + page extract |
 | `content_whatsapp.js` | WhatsApp Web voice transcription UI |
+| `offscreen-stt.js` | On-device Whisper (Transformers.js) |
 | `search.js` | DuckDuckGo web / images / videos |
 | `sidepanel.*` | UI, streaming chat, Markdown render |
 | `_locales/` | Extension strings |

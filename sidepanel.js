@@ -44,8 +44,13 @@ const els = {
   baseUrl: document.getElementById('base-url'),
   model: document.getElementById('model'),
   refreshModels: document.getElementById('refresh-models'),
+  transcriptionEngine: document.getElementById('transcription-engine'),
+  localWhisperModel: document.getElementById('local-whisper-model'),
+  localWhisperModelWrap: document.getElementById('local-whisper-model-wrap'),
   transcriptionBaseUrl: document.getElementById('transcription-base-url'),
+  transcriptionBaseUrlWrap: document.getElementById('transcription-base-url-wrap'),
   transcriptionModel: document.getElementById('transcription-model'),
+  transcriptionModelWrap: document.getElementById('transcription-model-wrap'),
   apiKey: document.getElementById('api-key'),
   responseLanguage: document.getElementById('response-language'),
   uiLanguage: document.getElementById('ui-language'),
@@ -73,10 +78,6 @@ function uiMessage(key) {
     throw new Error(`Missing UI string: ${key}`);
   }
   return expandUiTokens(fallback);
-}
-
-function formatCaught(error) {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function setPanelError(message) {
@@ -591,15 +592,39 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
   }
 }
 
+function fillTranscriptionSelects() {
+  appendSelectOptions(els.transcriptionEngine, [
+    { value: 'local', label: uiMessage('uiTranscriptionEngineLocal') },
+    { value: 'api', label: uiMessage('uiTranscriptionEngineApi') },
+  ]);
+  appendSelectOptions(
+    els.localWhisperModel,
+    LOCAL_WHISPER_MODELS.map((item) => ({
+      value: item.id,
+      label: `${uiMessage(item.labelKey)} (~${item.approxMb} MB)`,
+    })),
+  );
+}
+
+function syncTranscriptionEngineUi(engine = els.transcriptionEngine.value) {
+  const isApi = engine === 'api';
+  els.localWhisperModelWrap.hidden = isApi;
+  els.transcriptionBaseUrlWrap.hidden = !isApi;
+  els.transcriptionModelWrap.hidden = !isApi;
+}
+
 function paintSettingsForm(settings) {
   els.baseUrl.value = settings.baseUrl;
   els.apiKey.value = settings.apiKey;
+  els.transcriptionEngine.value = settings.transcriptionEngine || DEFAULT_TRANSCRIPTION_ENGINE;
+  els.localWhisperModel.value = settings.localWhisperModel || DEFAULT_LOCAL_WHISPER_MODEL;
   els.transcriptionBaseUrl.value = settings.transcriptionBaseUrl || '';
   els.transcriptionModel.value = settings.transcriptionModel || DEFAULT_TRANSCRIPTION_MODEL;
   els.responseLanguage.value = settings.responseLanguage;
   els.uiLanguage.value = settings.uiLanguage;
   els.theme.value = settings.theme;
   fillModelSelect(settings.model ? [settings.model] : [], settings.model);
+  syncTranscriptionEngineUi(els.transcriptionEngine.value);
   applyTheme(settings.theme);
 }
 
@@ -1085,6 +1110,10 @@ async function loadPendingJob() {
   enqueueJob(job);
 }
 
+els.transcriptionEngine.addEventListener('change', () => {
+  syncTranscriptionEngineUi(els.transcriptionEngine.value);
+});
+
 els.refreshModels.addEventListener('click', async () => {
   await refreshModelOptions({ quiet: false, interactive: true });
 });
@@ -1102,19 +1131,17 @@ els.form.addEventListener('submit', async (event) => {
   setSettingsFeedback('');
 
   try {
-    const baseUrl = els.baseUrl.value.trim();
-    if (baseUrl) {
-      await ensureApiHostPermission(baseUrl, { interactive: true });
-    }
-    const transcriptionBaseUrl = els.transcriptionBaseUrl.value.trim();
-    if (transcriptionBaseUrl) {
-      await ensureApiHostPermission(transcriptionBaseUrl, { interactive: true });
+    const urls = [els.baseUrl.value.trim(), els.transcriptionBaseUrl.value.trim()].filter(Boolean);
+    for (const url of urls) {
+      await ensureApiHostPermission(url, { interactive: true });
     }
 
     const next = await persistSettings({
       baseUrl: els.baseUrl.value,
       model: els.model.value,
       apiKey: els.apiKey.value,
+      transcriptionEngine: els.transcriptionEngine.value,
+      localWhisperModel: els.localWhisperModel.value,
       transcriptionBaseUrl: els.transcriptionBaseUrl.value,
       transcriptionModel: els.transcriptionModel.value,
       responseLanguage: els.responseLanguage.value,
@@ -1125,6 +1152,7 @@ els.form.addEventListener('submit', async (event) => {
     await loadMessageCatalog(next.uiLanguage);
     applyStaticI18n();
     fillLanguageSelects();
+    fillTranscriptionSelects();
     paintSettingsForm(next);
     applyTheme(next.theme);
     if (next.baseUrl.trim()) {
@@ -1481,6 +1509,7 @@ async function init() {
   await loadMessageCatalog(currentSettings.uiLanguage);
   applyStaticI18n();
   fillLanguageSelects();
+  fillTranscriptionSelects();
   paintSettingsForm(currentSettings);
   paintBrandTitles();
   mountGithubLinks();

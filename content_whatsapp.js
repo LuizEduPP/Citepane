@@ -1,24 +1,42 @@
 /**
  * WhatsApp Web voice-message transcription UI.
- * Loaded only on https://web.whatsapp.com/*
+ * Loaded only on https://web.whatsapp.com/* (after defaults.js + content.js).
  *
- * Newer WA layouts render PTT as play button + canvas (no <audio> in the DOM).
- * We detect those bubbles and capture audio via MAIN-world createObjectURL hook
- * after briefly triggering play.
+ * Newer WA layouts render PTT as play + canvas (often no <audio> in the DOM).
+ * Capture: MAIN-world createObjectURL hook and/or blob: <audio> after play.
  */
 
 const CITEPANE_VOICE_ATTR = 'data-citepane-voice';
 const CITEPANE_BTN_CLASS = 'citepane-wa-transcribe';
 const CITEPANE_PANEL_CLASS = 'citepane-wa-transcript';
-const WA_AUDIO_MSG_SOURCE = 'citepane-wa-audio';
 const AUDIO_CAPTURE_TIMEOUT_MS = 12000;
 
-function waMessage(key) {
-  try {
-    return globalThis.chrome?.i18n?.getMessage?.(key) || key;
-  } catch {
-    return key;
+const WA_VOICE_MARKERS = [
+  '[data-testid="ptt-status"]',
+  '[data-icon="ptt-status"]',
+  'audio',
+  '[aria-label="Mensagem de voz"]',
+  '[aria-label="Voice message"]',
+  '[aria-label="Mensaje de voz"]',
+];
+
+const WA_PLAY_SELECTORS = [
+  'button[aria-label*="mensagem de voz" i]',
+  'button[aria-label*="voice message" i]',
+  'button[aria-label*="mensaje de voz" i]',
+  'button[aria-label*="message vocal" i]',
+  'button[aria-label*="Sprachnachricht" i]',
+  '[data-testid="audio-play"]',
+];
+
+function queryFirst(root, selectors) {
+  for (const selector of selectors) {
+    const node = root.querySelector(selector);
+    if (node) {
+      return node;
+    }
   }
+  return null;
 }
 
 function findVoiceRoot(node) {
@@ -32,38 +50,15 @@ function findVoiceRoot(node) {
 }
 
 function isVoiceMessageRoot(root) {
-  if (!(root instanceof Element)) {
-    return false;
-  }
-  return Boolean(
-    root.querySelector('[data-testid="ptt-status"]') ||
-      root.querySelector('[data-icon="ptt-status"]') ||
-      root.querySelector('audio') ||
-      root.querySelector('[aria-label="Mensagem de voz"]') ||
-      root.querySelector('[aria-label="Voice message"]') ||
-      root.querySelector('[aria-label="Mensaje de voz"]') ||
-      root.querySelector('button[aria-label*="mensagem de voz" i]') ||
-      root.querySelector('button[aria-label*="voice message" i]') ||
-      root.querySelector('button[aria-label*="mensaje de voz" i]') ||
-      root.querySelector('button[aria-label*="message vocal" i]') ||
-      root.querySelector('button[aria-label*="Sprachnachricht" i]'),
-  );
+  return root instanceof Element && Boolean(queryFirst(root, WA_VOICE_MARKERS.concat(WA_PLAY_SELECTORS)));
 }
 
 function findPlayButton(root) {
-  return (
-    root.querySelector('button[aria-label*="mensagem de voz" i]') ||
-    root.querySelector('button[aria-label*="voice message" i]') ||
-    root.querySelector('button[aria-label*="mensaje de voz" i]') ||
-    root.querySelector('button[aria-label*="message vocal" i]') ||
-    root.querySelector('button[aria-label*="Sprachnachricht" i]') ||
-    root.querySelector('[data-testid="audio-play"]')
-  );
+  return queryFirst(root, WA_PLAY_SELECTORS);
 }
 
 function findBlobAudio(root) {
-  const scopes = [root, document];
-  for (const scope of scopes) {
+  for (const scope of [root, document]) {
     if (!scope?.querySelectorAll) {
       continue;
     }
@@ -77,14 +72,32 @@ function findBlobAudio(root) {
   return null;
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  const chunk = 0x8000;
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+async function readAudioElementPayload(audio) {
+  const src = audio.currentSrc || audio.src;
+  const response = await fetch(src);
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
   }
-  return btoa(binary);
+  const buffer = await response.arrayBuffer();
+  try {
+    audio.pause();
+  } catch {
+    // ignore
+  }
+  return {
+    buffer,
+    mimeType:
+      audio.getAttribute('type') || response.headers.get('content-type') || 'audio/ogg',
+  };
+}
+
+function placeInMessage(root, node) {
+  const addon = root.querySelector('[data-testid="addon-bubble-container"]');
+  if (addon) {
+    addon.append(node);
+    return;
+  }
+  root.append(node);
 }
 
 function ensureTranscriptPanel(root) {
@@ -106,7 +119,7 @@ function ensureTranscriptPanel(root) {
   const copyBtn = document.createElement('button');
   copyBtn.type = 'button';
   copyBtn.className = 'citepane-wa-copy';
-  copyBtn.textContent = waMessage('uiTranscriptCopy');
+  copyBtn.textContent = extMessage('uiTranscriptCopy');
   copyBtn.hidden = true;
   copyBtn.addEventListener('click', async (event) => {
     event.preventDefault();
@@ -117,9 +130,9 @@ function ensureTranscriptPanel(root) {
     }
     try {
       await navigator.clipboard.writeText(text);
-      copyBtn.textContent = waMessage('uiCopied');
+      copyBtn.textContent = extMessage('uiCopied');
       setTimeout(() => {
-        copyBtn.textContent = waMessage('uiTranscriptCopy');
+        copyBtn.textContent = extMessage('uiTranscriptCopy');
       }, 1200);
     } catch {
       // ignore
@@ -128,13 +141,7 @@ function ensureTranscriptPanel(root) {
 
   tools.append(copyBtn);
   panel.append(body, tools);
-
-  const addon = root.querySelector('[data-testid="addon-bubble-container"]');
-  if (addon) {
-    addon.append(panel);
-  } else {
-    root.append(panel);
-  }
+  placeInMessage(root, panel);
   return panel;
 }
 
@@ -146,52 +153,42 @@ function setPanelState(panel, { text = '', error = '', loading = false } = {}) {
   panel.classList.toggle('is-loading', loading);
 
   if (loading) {
-    body.textContent = waMessage('uiTranscribing');
+    body.textContent = extMessage('uiTranscribing');
     copyBtn.hidden = true;
     return;
   }
-
   if (error) {
     body.textContent = error;
     copyBtn.hidden = true;
     return;
   }
-
   body.textContent = text;
   copyBtn.hidden = !text;
 }
 
-function waitForHookedAudio(signal) {
+function waitWithTimeout(signal, run) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error(waMessage('uiTranscriptError')));
-    }, AUDIO_CAPTURE_TIMEOUT_MS);
+    let disposed = false;
+    let disposeExtra = () => {};
 
     function cleanup() {
+      if (disposed) {
+        return;
+      }
+      disposed = true;
       clearTimeout(timer);
-      window.removeEventListener('message', onMessage);
       signal?.removeEventListener('abort', onAbort);
+      disposeExtra();
     }
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(extMessage('uiTranscriptError')));
+    }, AUDIO_CAPTURE_TIMEOUT_MS);
 
     function onAbort() {
       cleanup();
       reject(new DOMException('Aborted', 'AbortError'));
-    }
-
-    function onMessage(event) {
-      if (event.source !== window) {
-        return;
-      }
-      const data = event.data;
-      if (!data || data.source !== WA_AUDIO_MSG_SOURCE || !data.buffer) {
-        return;
-      }
-      cleanup();
-      resolve({
-        buffer: data.buffer,
-        mimeType: data.mimeType || 'audio/ogg',
-      });
     }
 
     if (signal?.aborted) {
@@ -199,104 +196,122 @@ function waitForHookedAudio(signal) {
       return;
     }
     signal?.addEventListener('abort', onAbort, { once: true });
+
+    disposeExtra =
+      run({
+        resolve(value) {
+          cleanup();
+          resolve(value);
+        },
+        reject(error) {
+          cleanup();
+          reject(error);
+        },
+      }) || (() => {});
+  });
+}
+
+function waitForHookedAudio(signal) {
+  return waitWithTimeout(signal, ({ resolve }) => {
+    function onMessage(event) {
+      if (event.source !== window) {
+        return;
+      }
+      const data = event.data;
+      if (!data || data.source !== WA_AUDIO_HOOK_SOURCE || !data.buffer) {
+        return;
+      }
+      resolve({
+        buffer: data.buffer,
+        mimeType: data.mimeType || 'audio/ogg',
+      });
+    }
     window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
   });
 }
 
 function waitForDomBlobAudio(root, signal) {
-  return new Promise((resolve, reject) => {
-    const started = Date.now();
+  return waitWithTimeout(signal, ({ resolve, reject }) => {
     const poll = setInterval(async () => {
-      if (signal?.aborted) {
-        clearInterval(poll);
-        reject(new DOMException('Aborted', 'AbortError'));
-        return;
-      }
       const audio = findBlobAudio(root);
-      if (audio) {
-        clearInterval(poll);
-        try {
-          const src = audio.currentSrc || audio.src;
-          const response = await fetch(src);
-          const buffer = await response.arrayBuffer();
-          try {
-            audio.pause();
-          } catch {
-            // ignore
-          }
-          resolve({
-            buffer,
-            mimeType:
-              audio.getAttribute('type') ||
-              response.headers.get('content-type') ||
-              'audio/ogg',
-          });
-        } catch (error) {
-          reject(error);
-        }
+      if (!audio) {
         return;
       }
-      if (Date.now() - started > AUDIO_CAPTURE_TIMEOUT_MS) {
-        clearInterval(poll);
-        reject(new Error(waMessage('uiTranscriptError')));
+      clearInterval(poll);
+      try {
+        resolve(await readAudioElementPayload(audio));
+      } catch (error) {
+        reject(error);
       }
     }, 200);
-
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearInterval(poll);
-        reject(new DOMException('Aborted', 'AbortError'));
-      },
-      { once: true },
-    );
+    return () => clearInterval(poll);
   });
 }
 
 async function resolveAudioPayload(root) {
   const existing = findBlobAudio(root);
   if (existing) {
-    const src = existing.currentSrc || existing.src;
-    const response = await fetch(src);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const buffer = await response.arrayBuffer();
-    const mimeType =
-      existing.getAttribute('type') ||
-      response.headers.get('content-type') ||
-      'audio/ogg; codecs=opus';
-    return { buffer, mimeType };
+    return readAudioElementPayload(existing);
   }
 
   const playBtn = findPlayButton(root);
   if (!playBtn) {
-    throw new Error(waMessage('uiTranscriptError'));
+    throw new Error(extMessage('uiTranscriptError'));
   }
 
   const ac = new AbortController();
   playBtn.click();
 
   try {
-    const result = await Promise.any([
+    return await Promise.any([
       waitForHookedAudio(ac.signal),
       waitForDomBlobAudio(root, ac.signal),
     ]);
-    ac.abort();
-    return result;
   } catch (error) {
     if (error instanceof AggregateError) {
-      throw new Error(waMessage('uiTranscriptError'));
+      throw new Error(extMessage('uiTranscriptError'));
     }
     throw error;
   } finally {
-    const audio = findBlobAudio(root);
+    ac.abort();
     try {
-      audio?.pause();
+      findBlobAudio(root)?.pause();
     } catch {
       // ignore
     }
   }
+}
+
+async function requestLocalWhisperConsent() {
+  const ok = window.confirm(extMessage('uiWhisperDownloadConfirm'));
+  if (!ok) {
+    return false;
+  }
+  const accepted = await runtimeSendMessage({ type: MESSAGE_ACCEPT_LOCAL_WHISPER });
+  if (!accepted?.ok) {
+    throw new Error(accepted?.error || extMessage('uiWhisperDownloadDenied'));
+  }
+  return true;
+}
+
+async function sendTranscribeRequest(panel, buffer, mimeType, fileName) {
+  const payload = {
+    type: MESSAGE_TRANSCRIBE_AUDIO,
+    audioBase64: arrayBufferToBase64(buffer),
+    mimeType,
+    fileName,
+  };
+  let result = await runtimeSendMessage(payload);
+  if (result?.needsConsent) {
+    const accepted = await requestLocalWhisperConsent();
+    if (!accepted) {
+      throw new Error(extMessage('uiWhisperDownloadDenied'));
+    }
+    setPanelState(panel, { loading: true });
+    result = await runtimeSendMessage(payload);
+  }
+  return result;
 }
 
 async function transcribeVoiceRoot(root, panel, button) {
@@ -312,25 +327,14 @@ async function transcribeVoiceRoot(root, panel, button) {
     const mimeType = (rawMime || 'audio/ogg').split(';')[0].trim() || 'audio/ogg';
     const ext = mimeType.includes('mpeg') || mimeType.includes('mp3') ? 'mp3' : 'ogg';
 
-    const result = await runtimeSendMessage({
-      type: MESSAGE_TRANSCRIBE_AUDIO,
-      audioBase64: arrayBufferToBase64(buffer),
-      mimeType,
-      fileName: `whatsapp-voice.${ext}`,
-    });
+    const result = await sendTranscribeRequest(panel, buffer, mimeType, `whatsapp-voice.${ext}`);
 
-    if (!result) {
-      throw new Error(waMessage('uiTranscriptError'));
+    if (!result?.ok) {
+      throw new Error(result?.error || extMessage('uiTranscriptError'));
     }
-    if (!result.ok) {
-      throw new Error(result.error || waMessage('uiTranscriptError'));
-    }
-
     setPanelState(panel, { text: result.text });
   } catch (error) {
-    setPanelState(panel, {
-      error: error instanceof Error ? error.message : waMessage('uiTranscriptError'),
-    });
+    setPanelState(panel, { error: formatCaught(error) || extMessage('uiTranscriptError') });
   } finally {
     button.disabled = false;
   }
@@ -342,13 +346,11 @@ function placeTranscribeButton(root, button) {
     addon.prepend(button);
     return;
   }
-
   const playBtn = findPlayButton(root);
   if (playBtn?.parentElement) {
     playBtn.parentElement.append(button);
     return;
   }
-
   root.append(button);
 }
 
@@ -356,65 +358,63 @@ function enhanceVoiceRoot(root) {
   if (!(root instanceof Element) || !isVoiceMessageRoot(root)) {
     return;
   }
-  if (root.getAttribute(CITEPANE_VOICE_ATTR) === '1') {
-    return;
-  }
-  if (root.querySelector(`.${CITEPANE_BTN_CLASS}`)) {
+  if (root.getAttribute(CITEPANE_VOICE_ATTR) === '1' || root.querySelector(`.${CITEPANE_BTN_CLASS}`)) {
     root.setAttribute(CITEPANE_VOICE_ATTR, '1');
     return;
   }
 
   root.setAttribute(CITEPANE_VOICE_ATTR, '1');
 
+  const label = extMessage('uiTranscribe');
   const button = document.createElement('button');
   button.type = 'button';
   button.className = CITEPANE_BTN_CLASS;
-  button.textContent = waMessage('uiTranscribe');
-  button.title = waMessage('uiTranscribe');
+  button.textContent = label;
+  button.title = label;
 
   const panel = ensureTranscriptPanel(root);
-
   button.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
     transcribeVoiceRoot(root, panel, button);
   });
-
   placeTranscribeButton(root, button);
-}
-
-function enhanceVoiceAudio(audio) {
-  if (!(audio instanceof HTMLAudioElement)) {
-    return;
-  }
-  const root = findVoiceRoot(audio);
-  if (root) {
-    enhanceVoiceRoot(root);
-  }
 }
 
 function scanVoiceMessages(root = document) {
   if (!isExtensionContextValid()) {
     return;
   }
-  root.querySelectorAll?.('[data-testid="msg-container"]').forEach((node) => {
-    enhanceVoiceRoot(node);
-  });
-  root.querySelectorAll?.('audio').forEach((audio) => {
-    enhanceVoiceAudio(audio);
-  });
+  if (root.matches?.('[data-testid="msg-container"]')) {
+    enhanceVoiceRoot(root);
+  }
+  root.querySelectorAll?.('[data-testid="msg-container"]').forEach(enhanceVoiceRoot);
+
+  const audios = [];
+  if (root instanceof HTMLAudioElement) {
+    audios.push(root);
+  }
+  root.querySelectorAll?.('audio').forEach((audio) => audios.push(audio));
+  for (const audio of audios) {
+    const voiceRoot = findVoiceRoot(audio);
+    if (voiceRoot) {
+      enhanceVoiceRoot(voiceRoot);
+    }
+  }
+}
+
+function enhanceAddedNode(node) {
+  if (node instanceof Element) {
+    scanVoiceMessages(node);
+  }
 }
 
 async function ensureAudioHook() {
   if (!isExtensionContextValid()) {
     return;
   }
-  // Prefer MAIN-world injection (bypasses page CSP). Fall back to WAR script tag.
   const injected = await runtimeSendMessage({ type: MESSAGE_INJECT_WA_AUDIO_HOOK });
-  if (injected?.ok) {
-    return;
-  }
-  if (document.documentElement.dataset.citepaneWaHook === '1') {
+  if (injected?.ok || document.documentElement.dataset.citepaneWaHook === '1') {
     return;
   }
   let hookUrl = '';
@@ -449,22 +449,13 @@ function startWhatsAppTranscription() {
     }
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
-        if (!(node instanceof Element)) {
-          continue;
-        }
-        if (node.matches?.('[data-testid="msg-container"]')) {
-          enhanceVoiceRoot(node);
-        }
-        node.querySelectorAll?.('[data-testid="msg-container"]').forEach((el) => {
-          enhanceVoiceRoot(el);
-        });
-        if (node.matches?.('audio')) {
-          enhanceVoiceAudio(node);
-        }
-        node.querySelectorAll?.('audio').forEach((audio) => enhanceVoiceAudio(audio));
+        enhanceAddedNode(node);
       }
       if (mutation.type === 'attributes' && mutation.target instanceof HTMLAudioElement) {
-        enhanceVoiceAudio(mutation.target);
+        const voiceRoot = findVoiceRoot(mutation.target);
+        if (voiceRoot) {
+          enhanceVoiceRoot(voiceRoot);
+        }
       }
     }
   });

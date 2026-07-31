@@ -9,7 +9,7 @@
   }
   window.__citepaneWaAudioHook = true;
 
-  const SOURCE = 'citepane-wa-audio';
+  const SOURCE = 'citepane-wa-audio'; // keep in sync with WA_AUDIO_HOOK_SOURCE in defaults.js
 
   function publishBlob(blob, url) {
     if (!(blob instanceof Blob) || blob.size < 200) {

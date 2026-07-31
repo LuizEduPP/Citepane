@@ -92,6 +92,14 @@
             </div>
           </label>
           <label>
+            <span data-i18n="uiTranscriptionEngine">Transcription engine</span>
+            <select id="transcription-engine" name="transcriptionEngine"></select>
+          </label>
+          <label id="local-whisper-model-wrap">
+            <span data-i18n="uiLocalWhisperModel">On-device Whisper size</span>
+            <select id="local-whisper-model" name="localWhisperModel"></select>
+          </label>
+          <label id="transcription-base-url-wrap">
             <span data-i18n="uiTranscriptionBaseUrl">Transcription base URL (optional)</span>
             <input
               id="transcription-base-url"
@@ -99,11 +107,11 @@
               type="url"
               autocomplete="off"
               spellcheck="false"
-              placeholder="http://127.0.0.1:1234/v1"
+              placeholder="http://127.0.0.1:9000/v1"
             />
           </label>
-          <label>
-            <span data-i18n="uiTranscriptionModel">Transcription model (Whisper / STT)</span>
+          <label id="transcription-model-wrap">
+            <span data-i18n="uiTranscriptionModel">Transcription model (API)</span>
             <input
               id="transcription-model"
               name="transcriptionModel"

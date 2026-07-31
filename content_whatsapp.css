@@ -1,3 +1,9 @@
+.citepane-wa-transcribe,
+.citepane-wa-transcript-text,
+.citepane-wa-copy {
+  font-family: system-ui, "Segoe UI", sans-serif;
+}
+
 .citepane-wa-transcribe {
   display: inline-flex;
   align-items: center;
@@ -7,7 +13,9 @@
   border-radius: 16px;
   background: rgba(0, 168, 132, 0.12);
   color: #008f6f;
-  font: 600 12px/1.2 system-ui, "Segoe UI", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.2;
   cursor: pointer;
   white-space: nowrap;
   vertical-align: middle;
@@ -46,7 +54,8 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font: 13px/1.4 system-ui, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
   color: inherit;
 }
 
@@ -62,7 +71,9 @@
   border-radius: 6px;
   background: transparent;
   color: #008f6f;
-  font: 600 12px/1.2 system-ui, "Segoe UI", sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.2;
   cursor: pointer;
 }
 
