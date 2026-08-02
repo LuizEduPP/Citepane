@@ -6,6 +6,8 @@
 
 Citepane is a Chromium MV3 extension. Select text on any page, pick an action, and read the result beside the page—backed by **your** OpenAI-compatible API (Ollama, LM Studio, or cloud). Research actions combine page context with DuckDuckGo evidence; writing and translate work on the selection; images and videos open a quick gallery without calling the LLM.
 
+![Citepane preview](preview.png)
+
 ## Features
 
 - **Research** — Explain, Define, Fact-check, Pros & cons (page + web evidence)
