@@ -163,35 +163,5 @@
   },
   "uiActions": {
     "message": "¿Qué quieres hacer?"
-  },
-  "uiTranscribe": {
-    "message": "Transcribir"
-  },
-  "uiTranscribing": {
-    "message": "Transcribiendo…"
-  },
-  "uiTranscriptCopy": {
-    "message": "Copiar transcripción"
-  },
-  "uiTranscriptError": {
-    "message": "No se pudo transcribir este audio."
-  },
-  "uiLocalWhisperModel": {
-    "message": "Tamaño de Whisper local"
-  },
-  "uiLocalWhisperTiny": {
-    "message": "Tiny (rápido)"
-  },
-  "uiLocalWhisperBase": {
-    "message": "Base (equilibrado)"
-  },
-  "uiLocalWhisperSmall": {
-    "message": "Small (mejor calidad)"
-  },
-  "uiWhisperDownloadConfirm": {
-    "message": "Citepane descargará un modelo Whisper en el dispositivo desde Hugging Face (unos 40–250 MB, en caché del navegador). ¿Continuar?"
-  },
-  "uiWhisperDownloadDenied": {
-    "message": "Descarga de Whisper en el dispositivo cancelada."
   }
 }

@@ -44,7 +44,6 @@ const els = {
   baseUrl: document.getElementById('base-url'),
   model: document.getElementById('model'),
   refreshModels: document.getElementById('refresh-models'),
-  localWhisperModel: document.getElementById('local-whisper-model'),
   apiKey: document.getElementById('api-key'),
   responseLanguage: document.getElementById('response-language'),
   uiLanguage: document.getElementById('ui-language'),
@@ -586,20 +585,9 @@ async function refreshModelOptions({ quiet = false, interactive = false } = {}) 
   }
 }
 
-function fillLocalWhisperSelect() {
-  appendSelectOptions(
-    els.localWhisperModel,
-    LOCAL_WHISPER_MODELS.map((item) => ({
-      value: item.id,
-      label: `${uiMessage(item.labelKey)} (~${item.approxMb} MB)`,
-    })),
-  );
-}
-
 function paintSettingsForm(settings) {
   els.baseUrl.value = settings.baseUrl;
   els.apiKey.value = settings.apiKey;
-  els.localWhisperModel.value = settings.localWhisperModel || DEFAULT_LOCAL_WHISPER_MODEL;
   els.responseLanguage.value = settings.responseLanguage;
   els.uiLanguage.value = settings.uiLanguage;
   els.theme.value = settings.theme;
@@ -1115,7 +1103,6 @@ els.form.addEventListener('submit', async (event) => {
       baseUrl: els.baseUrl.value,
       model: els.model.value,
       apiKey: els.apiKey.value,
-      localWhisperModel: els.localWhisperModel.value,
       responseLanguage: els.responseLanguage.value,
       uiLanguage: els.uiLanguage.value,
       theme: els.theme.value,
@@ -1124,7 +1111,6 @@ els.form.addEventListener('submit', async (event) => {
     await loadMessageCatalog(next.uiLanguage);
     applyStaticI18n();
     fillLanguageSelects();
-    fillLocalWhisperSelect();
     paintSettingsForm(next);
     applyTheme(next.theme);
     if (next.baseUrl.trim()) {
@@ -1481,7 +1467,6 @@ async function init() {
   await loadMessageCatalog(currentSettings.uiLanguage);
   applyStaticI18n();
   fillLanguageSelects();
-  fillLocalWhisperSelect();
   paintSettingsForm(currentSettings);
   paintBrandTitles();
   mountGithubLinks();

@@ -163,35 +163,5 @@
   },
   "uiActions": {
     "message": "Was möchtest du tun?"
-  },
-  "uiTranscribe": {
-    "message": "Transkribieren"
-  },
-  "uiTranscribing": {
-    "message": "Transkribiert…"
-  },
-  "uiTranscriptCopy": {
-    "message": "Transkript kopieren"
-  },
-  "uiTranscriptError": {
-    "message": "Dieses Audio konnte nicht transkribiert werden."
-  },
-  "uiLocalWhisperModel": {
-    "message": "Lokale Whisper-Größe"
-  },
-  "uiLocalWhisperTiny": {
-    "message": "Tiny (schnell)"
-  },
-  "uiLocalWhisperBase": {
-    "message": "Base (ausgewogen)"
-  },
-  "uiLocalWhisperSmall": {
-    "message": "Small (bessere Qualität)"
-  },
-  "uiWhisperDownloadConfirm": {
-    "message": "Citepane lädt ein Whisper-Modell auf das Gerät von Hugging Face herunter (ca. 40–250 MB, Browser-Cache). Fortfahren?"
-  },
-  "uiWhisperDownloadDenied": {
-    "message": "Download von Whisper auf dem Gerät abgebrochen."
   }
 }

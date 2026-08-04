@@ -3,22 +3,20 @@
   "default_locale": "en",
   "name": "__MSG_extName__",
   "description": "__MSG_extDescription__",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "permissions": [
     "contextMenus",
     "sidePanel",
     "storage",
     "scripting",
-    "activeTab",
-    "offscreen"
+    "activeTab"
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; worker-src 'self'; img-src 'self' https: data:;"
+    "extension_pages": "script-src 'self'; object-src 'self'; img-src 'self' https: data:;"
   },
   "host_permissions": [
     "http://127.0.0.1/*",
     "http://localhost/*",
-    "https://web.whatsapp.com/*",
     "https://html.duckduckgo.com/*",
     "https://lite.duckduckgo.com/*",
     "https://api.duckduckgo.com/*",
@@ -26,17 +24,7 @@
   ],
   "optional_host_permissions": [
     "http://*/*",
-    "https://*/*",
-    "https://huggingface.co/*",
-    "https://*.huggingface.co/*",
-    "https://hf.co/*",
-    "https://*.hf.co/*"
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["wa_audio_hook.js"],
-      "matches": ["https://web.whatsapp.com/*"]
-    }
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -59,14 +47,14 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["defaults.js", "content.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://web.whatsapp.com/*"],
-      "js": ["content_whatsapp.js"],
-      "css": ["content_whatsapp.css"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "defaults.js",
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

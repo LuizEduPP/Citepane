@@ -69,10 +69,6 @@ function publishLiveSelection({ force = false } = {}) {
   if (selectionBridgeDead) {
     return;
   }
-  // WhatsApp Web fires selectionchange constantly; text actions aren't used there.
-  if (location.hostname === 'web.whatsapp.com') {
-    return;
-  }
   if (!isExtensionContextValid()) {
     selectionBridgeDead = true;
     return;
